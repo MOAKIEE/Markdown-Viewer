@@ -27,8 +27,27 @@
             android:windowSoftInputMode="adjustPan" />
         <activity
             android:name=".MarkdownActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustPan" />
+            android:exported="true"
+            android:windowSoftInputMode="adjustPan">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:mimeType="text/markdown" />
+                <data android:scheme="content" android:mimeType="text/markdown" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:mimeType="text/x-markdown" />
+                <data android:scheme="content" android:mimeType="text/x-markdown" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:mimeType="text/plain" />
+                <data android:scheme="content" android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".AboutActivity"
             android:exported="false"

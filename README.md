@@ -24,27 +24,6 @@
 - Android 7.0 及以上
 - 需要文件访问权限，用于浏览本地 Markdown 文件
 
-## 构建与运行
-
-推荐直接使用仓库自带的 Gradle Wrapper 打开项目并运行 `app` 模块。
-
-在 Windows 上可执行：
-
-```bash
-.\gradlew.bat assembleDebug
-```
-
-在 macOS 或 Linux 上可执行：
-
-```bash
-./gradlew assembleDebug
-```
-
-## 正式版发布
-
-推送 `vX.Y.Z` 标签后，GitHub Actions 会自动构建并发布正式版。
-版本号会直接使用标签里的 `X.Y.Z`，正式版产物会发布为 `app/build/outputs/apk/release/app-release.apk`。
-
 ## 使用方式
 
 1. 启动应用后，选择打开文件或浏览目录

@@ -2,22 +2,45 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseKeystorePath = project.findProperty('RELEASE_KEYSTORE_PATH') ?: System.getenv('RELEASE_KEYSTORE_PATH')
+def releaseKeystorePassword = project.findProperty('RELEASE_KEYSTORE_PASSWORD') ?: System.getenv('RELEASE_KEYSTORE_PASSWORD')
+def releaseKeyAlias = project.findProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS')
+def releaseKeyPassword = project.findProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD')
+def releaseVersionName = project.findProperty('RELEASE_VERSION_NAME') ?: System.getenv('RELEASE_VERSION_NAME') ?: '1.0'
+def releaseVersionCodeValue = project.findProperty('RELEASE_VERSION_CODE') ?: System.getenv('RELEASE_VERSION_CODE') ?: '1'
+def releaseVersionCode = Integer.parseInt(releaseVersionCodeValue.toString())
+def releaseSigningEnabled = releaseKeystorePath && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace 'com.example.markdownviewer'
     compileSdk 36
+
+    if (releaseSigningEnabled) {
+        signingConfigs {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId "com.example.markdownviewer"
         minSdk 24
         targetSdk 36
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (releaseSigningEnabled) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {

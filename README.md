@@ -26,15 +26,24 @@
 
 ## 构建与运行
 
-推荐直接使用 Android Studio 打开项目并运行 `app` 模块。
+推荐直接使用仓库自带的 Gradle Wrapper 打开项目并运行 `app` 模块。
 
-如果你已经在本机安装了 Gradle，也可以在项目根目录执行：
+在 Windows 上可执行：
 
 ```bash
-gradle assembleDebug
+.\gradlew.bat assembleDebug
 ```
 
-说明：当前仓库未包含 Gradle Wrapper。若希望仓库开箱即用，后续可以补上 wrapper。
+在 macOS 或 Linux 上可执行：
+
+```bash
+./gradlew assembleDebug
+```
+
+## 正式版发布
+
+推送 `vX.Y.Z` 标签后，GitHub Actions 会自动构建并发布正式版。
+版本号会直接使用标签里的 `X.Y.Z`，正式版产物会发布为 `app/build/outputs/apk/release/app-release.apk`。
 
 ## 使用方式
 
@@ -50,6 +59,3 @@ gradle assembleDebug
 - `app/src/main/res/drawable`：图标和背景资源
 - `app/src/main/res/values`：主题、颜色和字符串资源
 
-## 仓库命名建议
-
-建议直接使用 `markdown-viewer`。

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Background layer with decorative circles -->
+    <FrameLayout
+        android:id="@+id/background_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ios_background">
+
+        <View
+            android:layout_width="340dp"
+            android:layout_height="340dp"
+            android:layout_gravity="top|start"
+            android:layout_marginTop="-80dp"
+            android:layout_marginStart="-100dp"
+            android:background="@drawable/blur_circle_blue"
+            android:alpha="0.5" />
+
+        <View
+            android:layout_width="280dp"
+            android:layout_height="280dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="60dp"
+            android:layout_marginEnd="-80dp"
+            android:background="@drawable/blur_circle_purple"
+            android:alpha="0.45" />
+
+        <View
+            android:layout_width="320dp"
+            android:layout_height="320dp"
+            android:layout_gravity="bottom|start"
+            android:layout_marginBottom="-60dp"
+            android:layout_marginStart="-60dp"
+            android:background="@drawable/blur_circle_pink"
+            android:alpha="0.4" />
+    </FrameLayout>
+
+    <!-- Blur overlay -->
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/blur_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:blurOverlayColor="#66FFFFFF">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fitsSystemWindows="true">
+
+            <ImageView
+                android:id="@+id/btn_about"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="16dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_info"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="32dp"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    app:cardCornerRadius="22dp"
+                    app:cardElevation="0dp"
+                    android:layout_marginBottom="24dp">
+
+                    <ImageView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_app_logo"
+                        android:scaleType="centerCrop"
+                        android:background="@color/ios_glass_accent" />
+                </androidx.cardview.widget.CardView>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textSize="34sp"
+                    android:fontFamily="sans-serif-light"
+                    android:textColor="@color/ios_text_primary"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="轻量阅读器"
+                    android:textSize="16sp"
+                    android:textColor="@color/ios_text_secondary"
+                    android:layout_marginBottom="48dp" />
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btn_open_file"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:layout_marginBottom="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/glass_button_primary"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_open_file"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="打开文件"
+                            android:textSize="17sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="@color/white" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btn_browse"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:layout_marginBottom="32dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/glass_button_secondary"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_folder"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="浏览目录"
+                            android:textSize="17sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="@color/ios_text_primary" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <TextView
+                    android:id="@+id/tv_recent_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="最近打开"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/ios_text_secondary"
+                    android:layout_marginBottom="8dp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/recent_files_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </eightbitlab.com.blurview.BlurView>
+</FrameLayout>

@@ -123,7 +123,7 @@ public class MarkdownActivity extends AppCompatActivity {
         if (fileName != null) {
             tvTitle.setText(fileName);
         } else if (fileUri != null) {
-            tvTitle.setText(getFileNameFromUri(fileUri));
+            tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
         }
 
         if (filePath != null) {
@@ -342,24 +342,6 @@ public class MarkdownActivity extends AppCompatActivity {
             int y = layout.getLineTop(line);
             scrollView.smoothScrollTo(0, y + markdownTextView.getTop());
         }
-    }
-
-    private String getFileNameFromUri(Uri uri) {
-        String result = null;
-        if (uri != null && "content".equals(uri.getScheme())) {
-            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-                if (cursor != null && cursor.moveToFirst()) {
-                    int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                    if (idx >= 0) {
-                        result = cursor.getString(idx);
-                    }
-                }
-            }
-        }
-        if (result == null) {
-            result = uri.getLastPathSegment();
-        }
-        return result != null ? result : "Untitled";
     }
 
     private void loadMarkdownFile(String filePath) {

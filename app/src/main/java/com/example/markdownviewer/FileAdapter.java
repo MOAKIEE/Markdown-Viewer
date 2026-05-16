@@ -61,13 +61,13 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
             fileNameText.setText(fileItem.getName());
             if (fileItem.isParent()) {
                 fileIconImage.setImageResource(R.drawable.ic_back);
-                fileTypeText.setText("返回上级");
+                fileTypeText.setText(R.string.file_picker_back);
             } else if (fileItem.isDirectory()) {
                 fileIconImage.setImageResource(R.drawable.ic_folder_mini);
-                fileTypeText.setText("文件夹");
+                fileTypeText.setText(R.string.file_picker_folder);
             } else {
                 fileIconImage.setImageResource(R.drawable.ic_file_md);
-                fileTypeText.setText("Markdown 文档");
+                fileTypeText.setText(R.string.file_picker_md_file);
             }
         }
     }

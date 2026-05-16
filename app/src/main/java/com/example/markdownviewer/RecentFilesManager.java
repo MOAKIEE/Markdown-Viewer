@@ -18,7 +18,7 @@ public class RecentFilesManager {
     public static void addRecentFile(Context context, Uri uri) {
         if (uri == null) return;
         String uriString = uri.toString();
-        String displayName = getDisplayName(context, uri);
+        String displayName = FileUtils.getDisplayName(context, uri);
         List<RecentEntry> list = loadList(context);
 
         // Remove if exists
@@ -94,26 +94,6 @@ public class RecentFilesManager {
             return file.exists();
         }
         return true;
-    }
-
-    private static String getDisplayName(Context context, Uri uri) {
-        if ("content".equals(uri.getScheme())) {
-            try (android.database.Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
-                if (cursor != null && cursor.moveToFirst()) {
-                    int idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-                    if (idx >= 0) {
-                        String name = cursor.getString(idx);
-                        if (!TextUtils.isEmpty(name)) return name;
-                    }
-                }
-            }
-        }
-        String path = uri.getLastPathSegment();
-        if (path != null) {
-            int lastSlash = path.lastIndexOf('/');
-            return lastSlash != -1 ? path.substring(lastSlash + 1) : path;
-        }
-        return "Untitled";
     }
 
     public static class RecentEntry {

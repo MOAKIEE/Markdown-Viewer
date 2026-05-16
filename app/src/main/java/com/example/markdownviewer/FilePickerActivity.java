@@ -190,7 +190,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         } else {
             File markdownFile = new File(currentDirectory, fileItem.getName());
             if (markdownFile.length() > 5 * 1024 * 1024) {
-                Toast.makeText(this, "文件过大，不支持超过 5MB 的文件", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.file_picker_too_large, Toast.LENGTH_SHORT).show();
                 return;
             }
             Intent intent = new Intent(this, MarkdownActivity.class);

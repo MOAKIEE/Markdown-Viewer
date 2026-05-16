@@ -3,12 +3,10 @@ package com.example.markdownviewer;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -172,28 +170,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String getFileNameFromUri(Uri uri) {
-        String result = null;
-        if ("content".equals(uri.getScheme())) {
-            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-                if (cursor != null && cursor.moveToFirst()) {
-                    int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                    if (idx >= 0) {
-                        result = cursor.getString(idx);
-                    }
-                }
-            }
-        }
-        if (result == null) {
-            String path = uri.getLastPathSegment();
-            if (path != null) {
-                int lastSlash = path.lastIndexOf('/');
-                result = lastSlash != -1 ? path.substring(lastSlash + 1) : path;
-            }
-        }
-        return result != null ? result : "Untitled";
-    }
-
     private void refreshRecentFiles() {
         if (recentContainer == null) return;
         recentContainer.removeAllViews();
@@ -210,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
             TextView tvName = item.findViewById(R.id.tv_file_name);
             String displayName = entry.name;
             if (displayName == null || displayName.isEmpty()) {
-                displayName = getFileNameFromUri(Uri.parse(entry.uri));
+                displayName = FileUtils.getDisplayName(this, Uri.parse(entry.uri));
             }
             tvName.setText(displayName);
             item.setOnClickListener(v -> {

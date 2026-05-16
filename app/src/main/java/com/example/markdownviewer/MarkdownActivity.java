@@ -135,7 +135,7 @@ public class MarkdownActivity extends AppCompatActivity {
 
     private void showTocDialog() {
         if (tocEntries.isEmpty()) {
-            Toast.makeText(this, "未检测到标题", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.toc_empty, Toast.LENGTH_SHORT).show();
             return;
         }
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_toc, null);
@@ -367,15 +367,15 @@ public class MarkdownActivity extends AppCompatActivity {
         try {
             file = new File(filePath).getCanonicalFile();
         } catch (IOException e) {
-            Toast.makeText(this, "文件路径无效", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_invalid_path, Toast.LENGTH_SHORT).show();
             return;
         }
         if (!file.exists()) {
-            Toast.makeText(this, "文件不存在", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_file_not_found, Toast.LENGTH_SHORT).show();
             return;
         }
         if (file.length() > MAX_FILE_SIZE) {
-            Toast.makeText(this, "文件过大，不支持超过 5MB 的文件", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -386,7 +386,7 @@ public class MarkdownActivity extends AppCompatActivity {
                 content.append(line).append("\n");
             }
         } catch (IOException e) {
-            Toast.makeText(this, "读取文件失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -400,7 +400,7 @@ public class MarkdownActivity extends AppCompatActivity {
         if (uri == null) return;
         String scheme = uri.getScheme();
         if (!"content".equals(scheme) && !"file".equals(scheme)) {
-            Toast.makeText(this, "不支持的文件来源", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_unsupported_source, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -415,13 +415,13 @@ public class MarkdownActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
 
         if (fileSize > MAX_FILE_SIZE) {
-            Toast.makeText(this, "文件过大，不支持超过 5MB 的文件", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
             return;
         }
 
         try (InputStream is = getContentResolver().openInputStream(uri)) {
             if (is == null) {
-                Toast.makeText(this, "无法打开文件", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.error_open_failed, Toast.LENGTH_SHORT).show();
                 return;
             }
             StringBuilder content = new StringBuilder();
@@ -436,7 +436,7 @@ public class MarkdownActivity extends AppCompatActivity {
             markwon.setMarkdown(markdownTextView, rawMarkdownContent);
             RecentFilesManager.addRecentFile(this, uri);
         } catch (IOException e) {
-            Toast.makeText(this, "读取文件失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
         }
     }
 }

@@ -143,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(new Intent(this, FilePickerActivity.class));
                 }
             } else {
-                Toast.makeText(this, "需要存储权限才能读取文件", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.permission_required_storage, Toast.LENGTH_SHORT).show();
             }
             pendingAction = ACTION_NONE;
         }

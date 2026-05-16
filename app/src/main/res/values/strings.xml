@@ -1,4 +1,20 @@
 <resources>
     <string name="app_name">Markdown Viewer</string>
     <string name="file_icon">图标</string>
+
+    <string name="about_version">版本: %1$s</string>
+
+    <string name="permission_required_storage">需要存储权限才能读取文件</string>
+    <string name="permission_required_browse">需要存储权限</string>
+
+    <string name="error_invalid_path">文件路径无效</string>
+    <string name="error_file_not_found">文件不存在</string>
+    <string name="error_file_too_large">文件过大，不支持超过 5MB 的文件</string>
+    <string name="error_read_failed">读取文件失败</string>
+    <string name="error_open_failed">无法打开文件</string>
+    <string name="error_unsupported_source">不支持的文件来源</string>
+
+    <string name="toc_empty">未检测到标题</string>
+
+    <string name="recent_files_untitled">Untitled</string>
 </resources>

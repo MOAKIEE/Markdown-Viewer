@@ -116,7 +116,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 loadFilesAsync(Environment.getExternalStorageDirectory());
             } else {
-                Toast.makeText(this, "需要存储权限", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.permission_required_browse, Toast.LENGTH_SHORT).show();
             }
         }
     }

@@ -4,6 +4,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
@@ -14,6 +15,8 @@ import eightbitlab.com.blurview.RenderEffectBlur;
 import eightbitlab.com.blurview.RenderScriptBlur;
 
 public class AboutActivity extends AppCompatActivity {
+
+    private static final String TAG = "AboutActivity";
 
     private BlurView blurView;
 
@@ -32,10 +35,10 @@ public class AboutActivity extends AppCompatActivity {
         TextView tvVersion = findViewById(R.id.tv_version);
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            String version = pInfo.versionName;
-            tvVersion.setText("版本: " + version);
+            tvVersion.setText(getString(R.string.about_version, pInfo.versionName));
         } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
+            Log.w(TAG, "Unable to read package info", e);
+            tvVersion.setText(getString(R.string.about_version, "?"));
         }
     }
 

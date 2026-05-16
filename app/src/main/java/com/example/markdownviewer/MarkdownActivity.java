@@ -363,7 +363,13 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     private void loadMarkdownFile(String filePath) {
-        File file = new File(filePath);
+        File file;
+        try {
+            file = new File(filePath).getCanonicalFile();
+        } catch (IOException e) {
+            Toast.makeText(this, "文件路径无效", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (!file.exists()) {
             Toast.makeText(this, "文件不存在", Toast.LENGTH_SHORT).show();
             return;
@@ -391,6 +397,13 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     private void loadMarkdownFromUri(Uri uri) {
+        if (uri == null) return;
+        String scheme = uri.getScheme();
+        if (!"content".equals(scheme) && !"file".equals(scheme)) {
+            Toast.makeText(this, "不支持的文件来源", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         long fileSize = 0;
         try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
@@ -406,15 +419,13 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
-        InputStream is = null;
-        try {
-            is = getContentResolver().openInputStream(uri);
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
             if (is == null) {
                 Toast.makeText(this, "无法打开文件", Toast.LENGTH_SHORT).show();
                 return;
             }
             StringBuilder content = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     content.append(line).append("\n");
@@ -426,10 +437,6 @@ public class MarkdownActivity extends AppCompatActivity {
             RecentFilesManager.addRecentFile(this, uri);
         } catch (IOException e) {
             Toast.makeText(this, "读取文件失败", Toast.LENGTH_SHORT).show();
-        } finally {
-            if (is != null) {
-                try { is.close(); } catch (IOException ignored) {}
-            }
         }
     }
 }

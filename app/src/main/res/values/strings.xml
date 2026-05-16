@@ -3,6 +3,25 @@
     <string name="file_icon">图标</string>
 
     <string name="about_version">版本: %1$s</string>
+    <string name="about_description">这是一个带有毛玻璃效果的轻量级Markdown阅读器应用。遵循 Material Design 与 iOS 风格的设计元素。</string>
+    <string name="about_copyright">Copyright © 2026</string>
+    <string name="about_title">关于</string>
+
+    <string name="main_subtitle">轻量阅读器</string>
+    <string name="main_open_file">打开文件</string>
+    <string name="main_browse">浏览目录</string>
+    <string name="main_recent_label">最近打开</string>
+
+    <string name="file_picker_empty">暂无 Markdown 文件</string>
+    <string name="file_picker_title">文件</string>
+    <string name="file_picker_back">返回上级</string>
+    <string name="file_picker_folder">文件夹</string>
+    <string name="file_picker_md_file">Markdown 文档</string>
+    <string name="file_picker_too_large">文件过大，不支持超过 5MB 的文件</string>
+
+    <string name="markdown_title">文档</string>
+    <string name="search_hint">搜索…</string>
+    <string name="toc_title">目录</string>
 
     <string name="permission_required_storage">需要存储权限才能读取文件</string>
     <string name="permission_required_browse">需要存储权限</string>

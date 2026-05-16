@@ -104,7 +104,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="轻量阅读器"
+                    android:text="@string/main_subtitle"
                     android:textSize="16sp"
                     android:textColor="@color/ios_text_secondary"
                     android:layout_marginBottom="48dp" />
@@ -136,7 +136,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="打开文件"
+                            android:text="@string/main_open_file"
                             android:textSize="17sp"
                             android:fontFamily="sans-serif-medium"
                             android:textColor="@color/white" />
@@ -170,7 +170,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="浏览目录"
+                            android:text="@string/main_browse"
                             android:textSize="17sp"
                             android:fontFamily="sans-serif-medium"
                             android:textColor="@color/ios_text_primary" />
@@ -181,7 +181,7 @@
                     android:id="@+id/tv_recent_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="最近打开"
+                    android:text="@string/main_recent_label"
                     android:textSize="13sp"
                     android:fontFamily="sans-serif-medium"
                     android:textColor="@color/ios_text_secondary"

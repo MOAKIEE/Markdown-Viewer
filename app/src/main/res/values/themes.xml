@@ -1,7 +1,7 @@
 <resources>
     <style name="Theme.MarkdownViewer" parent="Theme.Material3.Light.NoActionBar">
         <item name="colorPrimary">@color/ios_blue</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorPrimaryVariant">@color/ios_blue_dark</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

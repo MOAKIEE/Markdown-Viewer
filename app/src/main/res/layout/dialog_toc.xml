@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="目录"
+        android:text="@string/toc_title"
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@color/ios_text_primary"

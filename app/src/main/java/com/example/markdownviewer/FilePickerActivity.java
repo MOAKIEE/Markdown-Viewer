@@ -18,6 +18,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -80,7 +81,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        executor.shutdown();
+        executor.shutdownNow();
     }
 
     private boolean checkPermission() {
@@ -161,6 +162,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             }
 
             mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
                 progressBar.setVisibility(View.GONE);
                 if (fileItems.isEmpty()) {
                     recyclerView.setVisibility(View.GONE);
@@ -192,9 +194,11 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                 return;
             }
             Intent intent = new Intent(this, MarkdownActivity.class);
-            Uri fileUri = Uri.fromFile(markdownFile);
+            Uri fileUri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", markdownFile);
             RecentFilesManager.addRecentFile(this, fileUri);
             intent.setData(fileUri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.putExtra("file_name", fileItem.getName());
             startActivity(intent);
         }

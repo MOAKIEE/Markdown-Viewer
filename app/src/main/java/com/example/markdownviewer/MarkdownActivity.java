@@ -2,6 +2,7 @@ package com.example.markdownviewer;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.Configuration; // 💡 引入用于识别夜间模式
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -26,9 +27,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Spanned;
 import android.widget.ProgressBar;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
+import io.noties.markwon.AbstractMarkwonPlugin;
+import io.noties.markwon.core.MarkwonTheme;
+import androidx.annotation.NonNull;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -45,7 +46,9 @@ import java.util.regex.Pattern;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.html.HtmlPlugin;
-import io.noties.markwon.image.ImagesPlugin;
+import io.noties.markwon.image.glide.GlideImagesPlugin; // 💡 替换为 Glide 异步图层缓存加载器
+import io.noties.markwon.ext.latex.JLatexMathPlugin; // 💡 引入 JLatexMath 渲染引擎
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin; // 💡 引入行内语法解析插件支持 LaTeX
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin;
 import io.noties.markwon.linkify.LinkifyPlugin;
@@ -72,8 +75,14 @@ public class MarkdownActivity extends AppCompatActivity {
     private int currentMatchIndex = -1;
     private List<TocEntry> tocEntries = new ArrayList<>();
     private ProgressBar progressLoading;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    // 💡 引入搜索防抖 Handler 与延时 Runnable
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchRunnable = null;
+
+    // 💡 记录当前的滚动历史及 Uri
+    private int savedScrollY = 0;
+    private Uri currentFileUri = null;
 
 
     @Override
@@ -88,12 +97,38 @@ public class MarkdownActivity extends AppCompatActivity {
         scrollView = findViewById(R.id.scroll_view);
         progressLoading = findViewById(R.id.progress_loading);
 
+        // 💡 自适应系统深浅色主题，微调超链接渲染对比度
+        boolean isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+
         markwon = Markwon.builder(this)
                 .usePlugin(HtmlPlugin.create())
-                .usePlugin(ImagesPlugin.create())
+                .usePlugin(GlideImagesPlugin.create(this)) // 💡 Glide 大图异步缓存托管，杜绝 OOM
+                .usePlugin(MarkwonInlineParserPlugin.create()) // 💡 支持 LaTeX 行内公式解析
+                .usePlugin(JLatexMathPlugin.create(markdownTextView.getTextSize(), builder -> {
+                    builder.inlinesEnabled(true); // 💡 启用行内 LaTeX 渲染支持
+                }))
                 .usePlugin(TablePlugin.create(this))
                 .usePlugin(StrikethroughPlugin.create())
                 .usePlugin(LinkifyPlugin.create())
+                .usePlugin(new AbstractMarkwonPlugin() {
+                    @Override
+                    public void configureTheme(@NonNull MarkwonTheme.Builder builder) {
+                        // 1. 设置代码块和行内代码背景色为温和的半透明灰色，亮暗色自适应
+                        builder.codeBackgroundColor(0x1A808080); // 10% 灰色
+                        builder.codeBlockBackgroundColor(0x10808080); // 6% 灰色
+                        
+                        // 2. 强化块引用（Blockquotes）的边界线宽度，并设定温和的半透明线条颜色
+                        builder.blockQuoteWidth(12); // 宽度设定为 12px (约 4dp)
+                        builder.blockQuoteColor(0x30808080); // 线条颜色设定为温和带半透明的灰色
+
+                        // 3. 💡 夜间护眼色彩自适应
+                        if (isDarkMode) {
+                            builder.linkColor(0xFF64B5F6); // 护眼亮蓝色
+                        } else {
+                            builder.linkColor(0xFF1E88E5); // 经典深蓝色
+                        }
+                    }
+                })
                 .build();
 
         findViewById(R.id.btn_back).setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
@@ -113,14 +148,25 @@ public class MarkdownActivity extends AppCompatActivity {
         btnSearchNext.setOnClickListener(v -> nextMatch());
         btnSearchPrev.setOnClickListener(v -> prevMatch());
 
+        // 💡 搜索输入框绑定 300ms 防抖
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) { performSearch(); }
+            @Override public void afterTextChanged(Editable s) {
+                if (searchRunnable != null) {
+                    searchHandler.removeCallbacks(searchRunnable);
+                }
+                searchRunnable = () -> performSearch();
+                searchHandler.postDelayed(searchRunnable, 300);
+            }
         });
 
+        // 💡 点击软键盘确认立即执行搜索
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                if (searchRunnable != null) {
+                    searchHandler.removeCallbacks(searchRunnable);
+                }
                 performSearch();
                 return true;
             }
@@ -145,9 +191,21 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        // 💡 退出或切后台时，即时自动捕获当前 ScrollY 高度持久化存盘，实现无感恢复
+        if (scrollView != null && currentFileUri != null) {
+            int scrollY = scrollView.getScrollY();
+            RecentFilesManager.updateScrollY(this, currentFileUri, scrollY);
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        executor.shutdownNow();
+        if (searchRunnable != null) {
+            searchHandler.removeCallbacks(searchRunnable);
+        }
     }
 
     private void showTocDialog() {
@@ -387,10 +445,15 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
+        // 💡 记录当前文件 Uri 并读取历史滚动高度
+        currentFileUri = Uri.fromFile(file);
+        savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
+
+        progressLoading.setAlpha(1f);
         progressLoading.setVisibility(View.VISIBLE);
         scrollView.setVisibility(View.GONE);
 
-        executor.execute(() -> {
+        AppExecutor.getInstance().diskIO().execute(() -> {
             StringBuilder content = new StringBuilder();
             boolean readSuccess = true;
             try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
@@ -403,9 +466,10 @@ public class MarkdownActivity extends AppCompatActivity {
             }
 
             if (!readSuccess) {
-                mainHandler.post(() -> {
+                AppExecutor.getInstance().mainThread().post(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     progressLoading.setVisibility(View.GONE);
+                    scrollView.setAlpha(1f);
                     scrollView.setVisibility(View.VISIBLE);
                     Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
                 });
@@ -416,13 +480,25 @@ public class MarkdownActivity extends AppCompatActivity {
             extractToc(markdown);
             final Spanned spanned = markwon.toMarkdown(markdown);
 
-            mainHandler.post(() -> {
+            AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 rawMarkdownContent = markdown;
                 markwon.setParsedMarkdown(markdownTextView, spanned);
-                RecentFilesManager.addRecentFile(this, Uri.fromFile(file));
-                progressLoading.setVisibility(View.GONE);
+                RecentFilesManager.addRecentFile(this, currentFileUri);
+                
+                // 💡 优雅平滑的渐隐淡出与渐现动效
+                progressLoading.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                    progressLoading.setVisibility(View.GONE);
+                    progressLoading.setAlpha(1f);
+                });
+                scrollView.setAlpha(0f);
                 scrollView.setVisibility(View.VISIBLE);
+                scrollView.animate().alpha(1f).setDuration(250).setListener(null);
+
+                // 💡 异步恢复滚动高度
+                if (savedScrollY > 0) {
+                    scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+                }
             });
         });
     }
@@ -435,10 +511,15 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
+        // 💡 记录当前文件 Uri 并读取历史滚动高度
+        currentFileUri = uri;
+        savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
+
+        progressLoading.setAlpha(1f);
         progressLoading.setVisibility(View.VISIBLE);
         scrollView.setVisibility(View.GONE);
 
-        executor.execute(() -> {
+        AppExecutor.getInstance().diskIO().execute(() -> {
             long fileSize = 0;
             try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
                 if (cursor != null && cursor.moveToFirst()) {
@@ -450,9 +531,10 @@ public class MarkdownActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
 
             if (fileSize > Constants.MAX_FILE_SIZE) {
-                mainHandler.post(() -> {
+                AppExecutor.getInstance().mainThread().post(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     progressLoading.setVisibility(View.GONE);
+                    scrollView.setAlpha(1f);
                     scrollView.setVisibility(View.VISIBLE);
                     Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
                 });
@@ -476,9 +558,10 @@ public class MarkdownActivity extends AppCompatActivity {
             }
 
             if (!success) {
-                mainHandler.post(() -> {
+                AppExecutor.getInstance().mainThread().post(() -> {
                     if (isFinishing() || isDestroyed()) return;
                     progressLoading.setVisibility(View.GONE);
+                    scrollView.setAlpha(1f);
                     scrollView.setVisibility(View.VISIBLE);
                     Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
                 });
@@ -489,13 +572,25 @@ public class MarkdownActivity extends AppCompatActivity {
             extractToc(markdown);
             final Spanned spanned = markwon.toMarkdown(markdown);
 
-            mainHandler.post(() -> {
+            AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 rawMarkdownContent = markdown;
                 markwon.setParsedMarkdown(markdownTextView, spanned);
                 RecentFilesManager.addRecentFile(this, uri);
-                progressLoading.setVisibility(View.GONE);
+                
+                // 💡 优雅平滑的渐隐淡出与渐现动效
+                progressLoading.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                    progressLoading.setVisibility(View.GONE);
+                    progressLoading.setAlpha(1f);
+                });
+                scrollView.setAlpha(0f);
                 scrollView.setVisibility(View.VISIBLE);
+                scrollView.animate().alpha(1f).setDuration(250).setListener(null);
+
+                // 💡 异步恢复滚动高度
+                if (savedScrollY > 0) {
+                    scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+                }
             });
         });
     }

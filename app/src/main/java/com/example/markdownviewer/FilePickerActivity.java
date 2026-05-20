@@ -42,9 +42,6 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     
     // 💡 引入路径历史栈，储存历次进入的 documentId，解决异构 DocumentId 分割的崩溃与失效风险
     private final ArrayList<String> mPathStack = new ArrayList<>();
-    
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +90,6 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        executor.shutdownNow();
     }
 
     private void openTreePicker() {
@@ -128,7 +124,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         emptyView.setVisibility(View.GONE);
         progressBar.setVisibility(View.VISIBLE);
 
-        executor.execute(() -> {
+        AppExecutor.getInstance().diskIO().execute(() -> {
             List<FileItem> fileItems = new ArrayList<>();
             Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, documentId);
 
@@ -172,14 +168,20 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             fileItems.addAll(dirList);
             fileItems.addAll(mdList);
 
-            mainHandler.post(() -> {
+            AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 progressBar.setVisibility(View.GONE);
                 if (fileItems.isEmpty()) {
                     recyclerView.setVisibility(View.GONE);
                     emptyView.setVisibility(View.VISIBLE);
                 } else {
+                    // 💡 对列表施加优雅的渐现微动效
+                    recyclerView.setAlpha(0f);
                     recyclerView.setVisibility(View.VISIBLE);
+                    recyclerView.animate()
+                            .alpha(1f)
+                            .setDuration(250)
+                            .setListener(null);
                     emptyView.setVisibility(View.GONE);
                     fileAdapter.setFiles(fileItems);
                 }

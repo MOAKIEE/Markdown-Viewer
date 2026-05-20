@@ -45,7 +45,6 @@ import io.noties.markwon.linkify.LinkifyPlugin;
 
 public class MarkdownActivity extends AppCompatActivity {
 
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     private static final int HIGHLIGHT_COLOR = 0xFFFFFF00;
     private static final int CURRENT_HIGHLIGHT_COLOR = 0xFFFFA500;
 
@@ -356,7 +355,7 @@ public class MarkdownActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.error_file_not_found, Toast.LENGTH_SHORT).show();
             return;
         }
-        if (file.length() > MAX_FILE_SIZE) {
+        if (file.length() > Constants.MAX_FILE_SIZE) {
             Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -396,7 +395,7 @@ public class MarkdownActivity extends AppCompatActivity {
             }
         } catch (Exception ignored) {}
 
-        if (fileSize > MAX_FILE_SIZE) {
+        if (fileSize > Constants.MAX_FILE_SIZE) {
             Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
             return;
         }

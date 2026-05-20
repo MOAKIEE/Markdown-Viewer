@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <external-path name="external_files" path="." />
+    <external-path name="external_files" path="Documents" />
     <files-path name="internal_files" path="." />
 </paths>

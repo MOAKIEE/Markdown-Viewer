@@ -12,6 +12,7 @@
     <string name="main_browse">浏览目录</string>
     <string name="main_recent_label">最近打开</string>
 
+    <string name="file_picker_select_folder">选择授权目录</string>
     <string name="file_picker_empty">暂无 Markdown 文件</string>
     <string name="file_picker_title">文件</string>
     <string name="file_picker_back">返回上级</string>

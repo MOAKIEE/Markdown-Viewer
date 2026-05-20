@@ -22,6 +22,13 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Spanned;
+import android.widget.ProgressBar;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -64,6 +71,10 @@ public class MarkdownActivity extends AppCompatActivity {
     private List<int[]> searchMatches = new ArrayList<>();
     private int currentMatchIndex = -1;
     private List<TocEntry> tocEntries = new ArrayList<>();
+    private ProgressBar progressLoading;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +86,7 @@ public class MarkdownActivity extends AppCompatActivity {
         tvTitle = findViewById(R.id.tv_title);
         markdownTextView = findViewById(R.id.markdown_text);
         scrollView = findViewById(R.id.scroll_view);
+        progressLoading = findViewById(R.id.progress_loading);
 
         markwon = Markwon.builder(this)
                 .usePlugin(HtmlPlugin.create())
@@ -132,6 +144,12 @@ public class MarkdownActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdownNow();
+    }
+
     private void showTocDialog() {
         if (tocEntries.isEmpty()) {
             Toast.makeText(this, R.string.toc_empty, Toast.LENGTH_SHORT).show();
@@ -172,8 +190,17 @@ public class MarkdownActivity extends AppCompatActivity {
         tocEntries.clear();
         String[] lines = content.split("\n");
         Pattern headingPattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
+        boolean isInCodeBlock = false;
         for (int i = 0; i < lines.length; i++) {
-            Matcher m = headingPattern.matcher(lines[i].trim());
+            String trimmedLine = lines[i].trim();
+            if (trimmedLine.startsWith("```")) {
+                isInCodeBlock = !isInCodeBlock;
+                continue;
+            }
+            if (isInCodeBlock) {
+                continue;
+            }
+            Matcher m = headingPattern.matcher(trimmedLine);
             if (m.find()) {
                 int level = m.group(1).length();
                 String title = m.group(2).trim();
@@ -360,21 +387,44 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
-        StringBuilder content = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
-            }
-        } catch (IOException e) {
-            Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
-            return;
-        }
+        progressLoading.setVisibility(View.VISIBLE);
+        scrollView.setVisibility(View.GONE);
 
-        rawMarkdownContent = content.toString();
-        extractToc(rawMarkdownContent);
-        markwon.setMarkdown(markdownTextView, rawMarkdownContent);
-        RecentFilesManager.addRecentFile(this, Uri.fromFile(file));
+        executor.execute(() -> {
+            StringBuilder content = new StringBuilder();
+            boolean readSuccess = true;
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+            } catch (IOException e) {
+                readSuccess = false;
+            }
+
+            if (!readSuccess) {
+                mainHandler.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressLoading.setVisibility(View.GONE);
+                    scrollView.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
+                });
+                return;
+            }
+
+            final String markdown = content.toString();
+            extractToc(markdown);
+            final Spanned spanned = markwon.toMarkdown(markdown);
+
+            mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                rawMarkdownContent = markdown;
+                markwon.setParsedMarkdown(markdownTextView, spanned);
+                RecentFilesManager.addRecentFile(this, Uri.fromFile(file));
+                progressLoading.setVisibility(View.GONE);
+                scrollView.setVisibility(View.VISIBLE);
+            });
+        });
     }
 
     private void loadMarkdownFromUri(Uri uri) {
@@ -385,39 +435,68 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
-        long fileSize = 0;
-        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE);
-                if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) {
-                    fileSize = cursor.getLong(sizeIdx);
+        progressLoading.setVisibility(View.VISIBLE);
+        scrollView.setVisibility(View.GONE);
+
+        executor.execute(() -> {
+            long fileSize = 0;
+            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) {
+                        fileSize = cursor.getLong(sizeIdx);
+                    }
                 }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
 
-        if (fileSize > Constants.MAX_FILE_SIZE) {
-            Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        try (InputStream is = getContentResolver().openInputStream(uri)) {
-            if (is == null) {
-                Toast.makeText(this, R.string.error_open_failed, Toast.LENGTH_SHORT).show();
+            if (fileSize > Constants.MAX_FILE_SIZE) {
+                mainHandler.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressLoading.setVisibility(View.GONE);
+                    scrollView.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
+                });
                 return;
             }
+
             StringBuilder content = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
+            boolean success = false;
+            try (InputStream is = getContentResolver().openInputStream(uri)) {
+                if (is != null) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            content.append(line).append("\n");
+                        }
+                        success = true;
+                    }
                 }
+            } catch (IOException e) {
+                success = false;
             }
-            rawMarkdownContent = content.toString();
-            extractToc(rawMarkdownContent);
-            markwon.setMarkdown(markdownTextView, rawMarkdownContent);
-            RecentFilesManager.addRecentFile(this, uri);
-        } catch (IOException e) {
-            Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
-        }
+
+            if (!success) {
+                mainHandler.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    progressLoading.setVisibility(View.GONE);
+                    scrollView.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
+                });
+                return;
+            }
+
+            final String markdown = content.toString();
+            extractToc(markdown);
+            final Spanned spanned = markwon.toMarkdown(markdown);
+
+            mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                rawMarkdownContent = markdown;
+                markwon.setParsedMarkdown(markdownTextView, spanned);
+                RecentFilesManager.addRecentFile(this, uri);
+                progressLoading.setVisibility(View.GONE);
+                scrollView.setVisibility(View.VISIBLE);
+            });
+        });
     }
 }

@@ -140,33 +140,46 @@
             android:focusable="true" />
     </LinearLayout>
 
-    <!-- Content -->
-    <ScrollView
-        android:id="@+id/scroll_view"
+    <!-- Content Container -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="20dp"
-        android:clipToPadding="false">
+        android:layout_height="match_parent">
 
-        <androidx.cardview.widget.CardView
+        <ScrollView
+            android:id="@+id/scroll_view"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/ios_card_bg"
-            android:layout_marginBottom="20dp">
+            android:layout_height="match_parent"
+            android:padding="20dp"
+            android:clipToPadding="false">
 
-            <TextView
-                android:id="@+id/markdown_text"
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="20dp"
-                android:textSize="16sp"
-                android:lineSpacingMultiplier="1.3"
-                android:textColor="@color/ios_text_primary"
-                android:textIsSelectable="true" />
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/ios_card_bg"
+                android:layout_marginBottom="20dp">
 
-        </androidx.cardview.widget.CardView>
-    </ScrollView>
+                <TextView
+                    android:id="@+id/markdown_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="20dp"
+                    android:textSize="16sp"
+                    android:lineSpacingMultiplier="1.3"
+                    android:textColor="@color/ios_text_primary"
+                    android:textIsSelectable="true" />
+
+            </androidx.cardview.widget.CardView>
+        </ScrollView>
+
+        <ProgressBar
+            android:id="@+id/progress_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/ios_blue"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </LinearLayout>

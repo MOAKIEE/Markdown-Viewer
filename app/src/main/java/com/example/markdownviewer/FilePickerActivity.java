@@ -11,6 +11,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.DocumentsContract;
 import android.view.View;
+import android.widget.HorizontalScrollView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -39,16 +41,20 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     private TextView tvPath;
     private View emptyView;
     private View progressBar;
+    private HorizontalScrollView scrollBreadcrumbs;
+    private LinearLayout layoutBreadcrumbs;
     
     // 💡 引入路径历史栈，储存历次进入的 documentId，解决异构 DocumentId 分割的崩溃与失效风险
     private final ArrayList<String> mPathStack = new ArrayList<>();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_file_picker);
 
         SystemBarUtils.applyLightSystemBars(getWindow());
+
+        eightbitlab.com.blurview.BlurView blurView = findViewById(R.id.blur_view);
+        BlurHelper.setup(this, blurView);
 
         tvPath = findViewById(R.id.tv_path);
         findViewById(R.id.btn_back).setOnClickListener(v -> handleBack());
@@ -57,6 +63,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         recyclerView = findViewById(R.id.recycler_view);
         emptyView = findViewById(R.id.empty_view);
         progressBar = findViewById(R.id.progress_bar);
+        scrollBreadcrumbs = findViewById(R.id.scroll_breadcrumbs);
+        layoutBreadcrumbs = findViewById(R.id.layout_breadcrumbs);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         fileAdapter = new FileAdapter(this);
         recyclerView.setAdapter(fileAdapter);
@@ -184,7 +192,9 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                             .setListener(null);
                     emptyView.setVisibility(View.GONE);
                     fileAdapter.setFiles(fileItems);
+                    recyclerView.scheduleLayoutAnimation();
                 }
+                updateBreadcrumbs();
             });
         });
     }
@@ -235,6 +245,107 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             loadFilesAsync(treeUri, parentId);
         } else {
             super.onBackPressed();
+        }
+    }
+
+    private void updateBreadcrumbs() {
+        if (layoutBreadcrumbs == null || scrollBreadcrumbs == null || treeUri == null) return;
+        layoutBreadcrumbs.removeAllViews();
+
+        String rootDocId = DocumentsContract.getDocumentId(treeUri);
+        if (mPathStack.isEmpty() && (currentPath == null || currentPath.equals(rootDocId))) {
+            scrollBreadcrumbs.setVisibility(View.GONE);
+            return;
+        }
+
+        scrollBreadcrumbs.setVisibility(View.VISIBLE);
+        float scale = getResources().getDisplayMetrics().density;
+        int paddingPx = (int) (8 * scale + 0.5f);
+
+        List<PathSegment> segments = new ArrayList<>();
+        segments.add(new PathSegment(extractDisplayName(rootDocId), rootDocId, -1));
+
+        for (int i = 0; i < mPathStack.size(); i++) {
+            String path = mPathStack.get(i);
+            if (!path.equals(rootDocId)) {
+                segments.add(new PathSegment(extractDisplayName(path), path, i));
+            }
+        }
+
+        if (currentPath != null && !currentPath.equals(rootDocId)) {
+            segments.add(new PathSegment(extractDisplayName(currentPath), currentPath, -2));
+        }
+
+        for (int i = 0; i < segments.size(); i++) {
+            PathSegment segment = segments.get(i);
+
+            if (i > 0) {
+                android.widget.ImageView ivDivider = new android.widget.ImageView(this);
+                ivDivider.setImageResource(R.drawable.ic_chevron_right);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                    ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.ios_text_secondary)));
+                }
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        (int) (12 * scale + 0.5f), (int) (12 * scale + 0.5f));
+                lp.gravity = android.view.Gravity.CENTER_VERTICAL;
+                lp.leftMargin = (int) (4 * scale + 0.5f);
+                lp.rightMargin = (int) (4 * scale + 0.5f);
+                ivDivider.setLayoutParams(lp);
+                layoutBreadcrumbs.addView(ivDivider);
+            }
+
+            TextView tvSegment = new TextView(this);
+            tvSegment.setText(segment.name);
+            tvSegment.setTextSize(13);
+            tvSegment.setSingleLine(true);
+            tvSegment.setGravity(android.view.Gravity.CENTER);
+            tvSegment.setBackgroundResource(R.drawable.bg_breadcrumb_pill);
+
+            int padLeftRight = (int) (12 * scale + 0.5f);
+            int padTopBottom = (int) (6 * scale + 0.5f);
+            tvSegment.setPadding(padLeftRight, padTopBottom, padLeftRight, padTopBottom);
+
+            LinearLayout.LayoutParams lpPill = new LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+            lpPill.leftMargin = (int) (2 * scale + 0.5f);
+            lpPill.rightMargin = (int) (2 * scale + 0.5f);
+            tvSegment.setLayoutParams(lpPill);
+
+            boolean isLast = (i == segments.size() - 1);
+            if (isLast) {
+                tvSegment.setTextColor(getResources().getColor(R.color.ios_text_primary));
+                tvSegment.setTypeface(null, android.graphics.Typeface.BOLD);
+            } else {
+                tvSegment.setTextColor(getResources().getColor(R.color.ios_blue));
+                tvSegment.setClickable(true);
+                tvSegment.setFocusable(true);
+                tvSegment.setOnClickListener(v -> {
+                    if (segment.stackIndex == -1) {
+                        mPathStack.clear();
+                        loadFilesAsync(treeUri, segment.docId);
+                    } else if (segment.stackIndex >= 0) {
+                        int limit = segment.stackIndex;
+                        while (mPathStack.size() > limit) {
+                            mPathStack.remove(mPathStack.size() - 1);
+                        }
+                        loadFilesAsync(treeUri, segment.docId);
+                    }
+                });
+            }
+            layoutBreadcrumbs.addView(tvSegment);
+        }
+
+        scrollBreadcrumbs.post(() -> scrollBreadcrumbs.fullScroll(View.FOCUS_RIGHT));
+    }
+
+    private static class PathSegment {
+        final String name;
+        final String docId;
+        final int stackIndex;
+        PathSegment(String name, String docId, int stackIndex) {
+            this.name = name;
+            this.docId = docId;
+            this.stackIndex = stackIndex;
         }
     }
 }

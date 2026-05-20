@@ -61,6 +61,14 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btn_about).setOnClickListener(v ->
                 startActivity(new Intent(this, AboutActivity.class)));
 
+        View btnClear = findViewById(R.id.btn_clear_recent);
+        if (btnClear != null) {
+            btnClear.setOnClickListener(v -> {
+                RecentFilesManager.clear(this);
+                refreshRecentFiles();
+            });
+        }
+
         refreshRecentFiles();
     }
 
@@ -83,14 +91,18 @@ public class MainActivity extends AppCompatActivity {
         if (recentContainer == null) return;
         recentContainer.removeAllViews();
         List<RecentFilesManager.RecentEntry> list = RecentFilesManager.getRecentFiles(this);
+        View layoutHeader = findViewById(R.id.layout_recent_header);
         if (list.isEmpty()) {
             recentContainer.setVisibility(View.GONE);
-            findViewById(R.id.tv_recent_label).setVisibility(View.GONE);
+            if (layoutHeader != null) layoutHeader.setVisibility(View.GONE);
             return;
         }
         recentContainer.setVisibility(View.VISIBLE);
-        findViewById(R.id.tv_recent_label).setVisibility(View.VISIBLE);
+        if (layoutHeader != null) layoutHeader.setVisibility(View.VISIBLE);
+        int count = 0;
         for (RecentFilesManager.RecentEntry entry : list) {
+            if (count >= 5) break;
+            count++;
             View item = LayoutInflater.from(this).inflate(R.layout.item_recent_file, recentContainer, false);
             TextView tvName = item.findViewById(R.id.tv_file_name);
             String displayName = entry.name;

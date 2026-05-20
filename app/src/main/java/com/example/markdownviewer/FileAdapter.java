@@ -56,18 +56,22 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
             fileTypeText = itemView.findViewById(R.id.file_type);
             fileIconImage = itemView.findViewById(R.id.file_icon);
         }
-
         public void bind(FileItem fileItem) {
             fileNameText.setText(fileItem.getName());
+            androidx.cardview.widget.CardView cardView = (androidx.cardview.widget.CardView) itemView;
             if (fileItem.isParent()) {
                 fileIconImage.setImageResource(R.drawable.ic_back);
                 fileTypeText.setText(R.string.file_picker_back);
-            } else if (fileItem.isDirectory()) {
-                fileIconImage.setImageResource(R.drawable.ic_folder_mini);
-                fileTypeText.setText(R.string.file_picker_folder);
+                cardView.setCardBackgroundColor(android.graphics.Color.parseColor("#0D007AFF"));
             } else {
-                fileIconImage.setImageResource(R.drawable.ic_file_md);
-                fileTypeText.setText(R.string.file_picker_md_file);
+                cardView.setCardBackgroundColor(itemView.getContext().getResources().getColor(R.color.ios_card_bg));
+                if (fileItem.isDirectory()) {
+                    fileIconImage.setImageResource(R.drawable.ic_folder_mini);
+                    fileTypeText.setText(R.string.file_picker_folder);
+                } else {
+                    fileIconImage.setImageResource(R.drawable.ic_file_md);
+                    fileTypeText.setText(R.string.file_picker_md_file);
+                }
             }
         }
     }

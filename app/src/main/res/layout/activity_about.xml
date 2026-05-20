@@ -136,7 +136,8 @@
                         android:layout_height="wrap_content"
                         android:background="@drawable/glass_button_secondary"
                         android:orientation="vertical"
-                        android:padding="16dp">
+                        android:padding="16dp"
+                        android:foreground="@drawable/glass_card_stroke">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -145,6 +146,49 @@
                             android:textSize="15sp"
                             android:lineSpacingExtra="4dp"
                             android:textColor="@color/ios_text_primary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="16dp"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Markwon 渲染"
+                                android:textSize="11sp"
+                                android:textColor="@color/ios_blue"
+                                android:background="@drawable/bg_breadcrumb_pill"
+                                android:paddingHorizontal="10dp"
+                                android:paddingVertical="4dp"
+                                android:layout_marginEnd="8dp"
+                                android:fontFamily="sans-serif-medium" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="BlurView 模糊"
+                                android:textSize="11sp"
+                                android:textColor="@color/ios_blue"
+                                android:background="@drawable/bg_breadcrumb_pill"
+                                android:paddingHorizontal="10dp"
+                                android:paddingVertical="4dp"
+                                android:layout_marginEnd="8dp"
+                                android:fontFamily="sans-serif-medium" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AndroidX 架构"
+                                android:textSize="11sp"
+                                android:textColor="@color/ios_blue"
+                                android:background="@drawable/bg_breadcrumb_pill"
+                                android:paddingHorizontal="10dp"
+                                android:paddingVertical="4dp"
+                                android:fontFamily="sans-serif-medium" />
+                        </LinearLayout>
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 

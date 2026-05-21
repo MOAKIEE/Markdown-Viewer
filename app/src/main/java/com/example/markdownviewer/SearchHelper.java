@@ -11,6 +11,8 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class SearchHelper {
 
@@ -47,7 +49,7 @@ public final class SearchHelper {
     }
 
     public void performSearch() {
-        String query = etSearch.getText().toString().toLowerCase();
+        String query = etSearch.getText().toString();
         if (query.isEmpty()) {
             clearHighlights();
             return;
@@ -55,15 +57,24 @@ public final class SearchHelper {
 
         CharSequence text = textView.getText();
         if (text == null) return;
-        String src = text.toString().toLowerCase();
+        String src = text.toString();
 
         matches.clear();
         currentMatch = -1;
 
-        int index = src.indexOf(query);
-        while (index >= 0) {
-            matches.add(new int[]{index, index + query.length()});
-            index = src.indexOf(query, index + 1);
+        try {
+            Pattern pattern = Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(src);
+            while (matcher.find()) {
+                matches.add(new int[]{matcher.start(), matcher.end()});
+            }
+        } catch (Exception e) {
+            // 回退到 indexOf
+            int index = src.toLowerCase().indexOf(query.toLowerCase());
+            while (index >= 0) {
+                matches.add(new int[]{index, index + query.length()});
+                index = src.toLowerCase().indexOf(query.toLowerCase(), index + 1);
+            }
         }
 
         if (matches.isEmpty()) {
@@ -95,7 +106,8 @@ public final class SearchHelper {
         CharSequence text = textView.getText();
         if (text instanceof Spannable) {
             Spannable spannable = (Spannable) text;
-            for (BackgroundColorSpan span : spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class)) {
+            BackgroundColorSpan[] spans = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
+            for (BackgroundColorSpan span : spans) {
                 spannable.removeSpan(span);
             }
         }
@@ -118,7 +130,9 @@ public final class SearchHelper {
         if (!(text instanceof Spannable)) return;
         Spannable spannable = (Spannable) text;
 
-        for (BackgroundColorSpan span : spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class)) {
+        // 仅移除已存在的高亮 span，避免全量扫描所有 span 类型
+        BackgroundColorSpan[] existing = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
+        for (BackgroundColorSpan span : existing) {
             spannable.removeSpan(span);
         }
 

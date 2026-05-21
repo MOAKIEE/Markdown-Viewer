@@ -218,12 +218,12 @@
                             android:contentDescription="@string/main_clear_recent" />
                     </RelativeLayout>
 
-                    <LinearLayout
-                        android:id="@+id/recent_files_container"
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recycler_recent_files"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:visibility="gone" />
+                        android:visibility="gone"
+                        android:nestedScrollingEnabled="false" />
 
                 </LinearLayout>
             </androidx.core.widget.NestedScrollView>

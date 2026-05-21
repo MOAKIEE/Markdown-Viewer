@@ -185,7 +185,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                             .setDuration(Constants.ANIM_DURATION_APPEAR)
                             .setListener(null);
                     emptyView.setVisibility(View.GONE);
-                    fileAdapter.setFiles(fileItems);
+                    fileAdapter.submitList(fileItems);
                     recyclerView.scheduleLayoutAnimation();
                 }
                 updateBreadcrumbs();

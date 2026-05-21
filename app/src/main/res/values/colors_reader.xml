@@ -1,16 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ios_background">#F2F2F7</color>
-    <color name="ios_card_bg">#FFFFFF</color>
-    <color name="ios_text_primary">#1C1C1E</color>
-    <color name="ios_text_secondary">#8E8E93</color>
-    <color name="ios_glass_accent">#5AC8FA</color>
-    <color name="ios_blue">#007AFF</color>
-    <color name="ic_launcher_background">#5AC8FA</color>
-    <color name="ios_blue_dark">#0051D5</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="black">#FF000000</color>
-
     <!-- Reader theme: Classic (adaptive) -->
     <color name="theme_classic_circle">#E5E5EA</color>
     <color name="theme_classic_toolbar_light">#99FFFFFF</color>
@@ -53,17 +42,4 @@
     <color name="theme_space_code_block_bg">#1A808080</color>
     <color name="theme_space_block_quote">#304988ED</color>
     <color name="theme_space_link">#FF4988ED</color>
-
-    <!-- Search highlight colors -->
-    <color name="search_highlight_light">#FFFFFF00</color>
-    <color name="search_highlight_current_light">#FFFFA500</color>
-    <color name="search_highlight_dark">#FF666600</color>
-    <color name="search_highlight_current_dark">#FF996600</color>
-
-    <!-- Shared UI colors -->
-    <color name="card_parent_tint">#0D007AFF</color>
-    <color name="spacing_highlight_active">#40808080</color>
-    <color name="spacing_highlight_inactive">#15808080</color>
-    <color name="divider_line">#15808080</color>
-    <color name="drag_handle">#338E8E93</color>
 </resources>

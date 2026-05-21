@@ -8,14 +8,12 @@
     android:padding="20dp">
 
     <!-- BottomSheet drag handle -->
-    <androidx.cardview.widget.CardView
+    <View
         android:layout_width="36dp"
         android:layout_height="4dp"
         android:layout_gravity="center_horizontal"
         android:layout_marginBottom="16dp"
-        app:cardBackgroundColor="#338E8E93"
-        app:cardCornerRadius="2dp"
-        app:cardElevation="0dp" />
+        android:background="@color/drag_handle" />
 
     <TextView
         android:layout_width="match_parent"
@@ -29,7 +27,7 @@
     <ListView
         android:id="@+id/list_toc"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="300dp"
         android:divider="@null"
         android:dividerHeight="0dp" />
 </LinearLayout>

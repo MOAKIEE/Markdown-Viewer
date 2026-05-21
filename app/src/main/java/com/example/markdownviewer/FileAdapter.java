@@ -8,34 +8,31 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.ArrayList;
-import java.util.List;
+public class FileAdapter extends ListAdapter<FileItem, FileAdapter.FileViewHolder> {
 
-public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder> {
+    private final OnFileClickListener listener;
 
-    private List<FileItem> files = new ArrayList<>();
-    private OnFileClickListener listener;
+    private static final DiffUtil.ItemCallback<FileItem> DIFF_CALLBACK =
+            new DiffUtil.ItemCallback<FileItem>() {
+                @Override
+                public boolean areItemsTheSame(@NonNull FileItem oldItem, @NonNull FileItem newItem) {
+                    return oldItem.getDocumentId() != null
+                            && oldItem.getDocumentId().equals(newItem.getDocumentId());
+                }
+
+                @Override
+                public boolean areContentsTheSame(@NonNull FileItem oldItem, @NonNull FileItem newItem) {
+                    return oldItem.equals(newItem);
+                }
+            };
 
     public FileAdapter(OnFileClickListener listener) {
+        super(DIFF_CALLBACK);
         this.listener = listener;
-    }
-
-    public void setFiles(List<FileItem> newFiles) {
-        List<FileItem> oldFiles = new ArrayList<>(files);
-        files = newFiles;
-
-        int oldSize = oldFiles.size();
-        int newSize = newFiles.size();
-
-        if (oldSize == 0 && newSize > 0) {
-            notifyItemRangeInserted(0, newSize);
-        } else if (newSize == 0 && oldSize > 0) {
-            notifyItemRangeRemoved(0, oldSize);
-        } else {
-            notifyDataSetChanged();
-        }
     }
 
     @NonNull
@@ -47,30 +44,27 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
-        FileItem fileItem = files.get(position);
+        FileItem fileItem = getItem(position);
         holder.bind(fileItem);
         holder.itemView.setOnClickListener(v -> listener.onFileClick(fileItem, holder.getAdapterPosition()));
     }
 
-    @Override
-    public int getItemCount() {
-        return files.size();
-    }
-
     static class FileViewHolder extends RecyclerView.ViewHolder {
-        private TextView fileNameText;
-        private TextView fileTypeText;
-        private ImageView fileIconImage;
+        private final TextView fileNameText;
+        private final TextView fileTypeText;
+        private final ImageView fileIconImage;
+        private final androidx.cardview.widget.CardView cardView;
 
         public FileViewHolder(@NonNull View itemView) {
             super(itemView);
+            cardView = (androidx.cardview.widget.CardView) itemView;
             fileNameText = itemView.findViewById(R.id.file_name);
             fileTypeText = itemView.findViewById(R.id.file_type);
             fileIconImage = itemView.findViewById(R.id.file_icon);
         }
+
         public void bind(FileItem fileItem) {
             fileNameText.setText(fileItem.getName());
-            androidx.cardview.widget.CardView cardView = (androidx.cardview.widget.CardView) itemView;
             if (fileItem.isParent()) {
                 fileIconImage.setImageResource(R.drawable.ic_back);
                 fileTypeText.setText(R.string.file_picker_back);

@@ -2,28 +2,24 @@ package com.example.markdownviewer;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
 
 import eightbitlab.com.blurview.BlurView;
-import eightbitlab.com.blurview.RenderEffectBlur;
-import eightbitlab.com.blurview.RenderScriptBlur;
 
 public class MainActivity extends AppCompatActivity {
 
-    private LinearLayout recentContainer;
+    private RecyclerView recyclerRecentFiles;
+    private RecentFileAdapter recentFileAdapter;
     private BlurView blurView;
     private FrameLayout backgroundContainer;
 
@@ -53,7 +49,10 @@ public class MainActivity extends AppCompatActivity {
         backgroundContainer = findViewById(R.id.background_container);
         BlurHelper.setup(this, blurView);
 
-        recentContainer = findViewById(R.id.recent_files_container);
+        recyclerRecentFiles = findViewById(R.id.recycler_recent_files);
+        recyclerRecentFiles.setLayoutManager(new LinearLayoutManager(this));
+        recentFileAdapter = new RecentFileAdapter(this::onRecentFileClick);
+        recyclerRecentFiles.setAdapter(recentFileAdapter);
 
         findViewById(R.id.btn_open_file).setOnClickListener(v -> openFilePicker());
         findViewById(R.id.btn_browse).setOnClickListener(v ->
@@ -88,45 +87,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRecentFiles() {
-        if (recentContainer == null) return;
-        recentContainer.removeAllViews();
         List<RecentFilesManager.RecentEntry> list = RecentFilesManager.getRecentFiles(this);
         View layoutHeader = findViewById(R.id.layout_recent_header);
         if (list.isEmpty()) {
-            recentContainer.setVisibility(View.GONE);
+            recyclerRecentFiles.setVisibility(View.GONE);
             if (layoutHeader != null) layoutHeader.setVisibility(View.GONE);
             return;
         }
-        recentContainer.setVisibility(View.VISIBLE);
+        recyclerRecentFiles.setVisibility(View.VISIBLE);
         if (layoutHeader != null) layoutHeader.setVisibility(View.VISIBLE);
-        int count = 0;
-        for (RecentFilesManager.RecentEntry entry : list) {
-            if (count >= Constants.MAX_RECENT_DISPLAY) break;
-            count++;
-            View item = LayoutInflater.from(this).inflate(R.layout.item_recent_file, recentContainer, false);
-            TextView tvName = item.findViewById(R.id.tv_file_name);
-            String displayName = entry.name;
-            if (displayName == null || displayName.isEmpty()) {
-                displayName = FileUtils.getDisplayName(this, Uri.parse(entry.uri));
+
+        int count = Math.min(list.size(), Constants.MAX_RECENT_DISPLAY);
+        recentFileAdapter.submitList(list.subList(0, count));
+    }
+
+    private void onRecentFileClick(RecentFilesManager.RecentEntry entry) {
+        try {
+            Uri uri = Uri.parse(entry.uri);
+            if ("content".equals(uri.getScheme())) {
+                getContentResolver().takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             }
-            tvName.setText(displayName);
-            item.setOnClickListener(v -> {
-                try {
-                    Uri uri = Uri.parse(entry.uri);
-                    if ("content".equals(uri.getScheme())) {
-                        getContentResolver().takePersistableUriPermission(
-                                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    }
-                    Intent intent = new Intent(this, MarkdownActivity.class);
-                    intent.setData(uri);
-                    startActivity(intent);
-                } catch (SecurityException | IllegalArgumentException e) {
-                    android.widget.Toast.makeText(this, R.string.recent_file_invalid, android.widget.Toast.LENGTH_SHORT).show();
-                    RecentFilesManager.removeRecentFile(this, entry.uri);
-                    refreshRecentFiles();
-                }
-            });
-            recentContainer.addView(item);
+            Intent intent = new Intent(this, MarkdownActivity.class);
+            intent.setData(uri);
+            startActivity(intent);
+        } catch (SecurityException | IllegalArgumentException e) {
+            android.widget.Toast.makeText(this, R.string.recent_file_invalid, android.widget.Toast.LENGTH_SHORT).show();
+            RecentFilesManager.removeRecentFile(this, entry.uri);
+            refreshRecentFiles();
         }
     }
 }

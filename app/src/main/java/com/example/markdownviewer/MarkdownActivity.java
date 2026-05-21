@@ -360,6 +360,8 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     private class TocAdapter extends BaseAdapter {
+        private final float density = getResources().getDisplayMetrics().density;
+
         @Override public int getCount() { return tocEntries.size(); }
         @Override public Object getItem(int position) { return tocEntries.get(position); }
         @Override public long getItemId(int position) { return position; }
@@ -376,10 +378,9 @@ public class MarkdownActivity extends AppCompatActivity {
             }
             TocParser.TocEntry entry = tocEntries.get(position);
 
-            float scale = getResources().getDisplayMetrics().density;
-            int paddingLeftPx = (int) (((entry.level - 1) * 16 + 8) * scale + 0.5f);
-            int paddingTopBottomPx = (int) (12 * scale + 0.5f);
-            int paddingRightPx = (int) (8 * scale + 0.5f);
+            int paddingLeftPx = (int) (((entry.level - 1) * 16 + 8) * density + 0.5f);
+            int paddingTopBottomPx = (int) (12 * density + 0.5f);
+            int paddingRightPx = (int) (8 * density + 0.5f);
             convertView.setPadding(paddingLeftPx, paddingTopBottomPx, paddingRightPx, paddingTopBottomPx);
 
             if (entry.level == 1) {

@@ -277,22 +277,23 @@ public class MarkdownActivity extends AppCompatActivity {
         btnSpacing16.setOnClickListener(spacingListener);
 
         // Theme
-        androidx.cardview.widget.CardView btnClassic = dialogView.findViewById(R.id.theme_classic);
-        androidx.cardview.widget.CardView btnSepia = dialogView.findViewById(R.id.theme_sepia);
-        androidx.cardview.widget.CardView btnGreen = dialogView.findViewById(R.id.theme_green);
-        androidx.cardview.widget.CardView btnSpace = dialogView.findViewById(R.id.theme_space);
+        View btnClassic = dialogView.findViewById(R.id.theme_classic);
+        View btnSepia = dialogView.findViewById(R.id.theme_sepia);
+        View btnGreen = dialogView.findViewById(R.id.theme_green);
+        View btnSpace = dialogView.findViewById(R.id.theme_space);
 
         Runnable updateThemeHighlight = () -> {
             int theme = readerPrefs.getInt("theme_mode", 0);
-            btnClassic.setCardElevation(theme == 0 ? 12f : 0f);
-            btnSepia.setCardElevation(theme == 1 ? 12f : 0f);
-            btnGreen.setCardElevation(theme == 2 ? 12f : 0f);
-            btnSpace.setCardElevation(theme == 3 ? 12f : 0f);
+            btnClassic.setForeground(theme == 0 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnSepia.setForeground(theme == 1 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnGreen.setForeground(theme == 2 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnSpace.setForeground(theme == 3 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
 
-            btnClassic.setForeground(theme == 0 ? getDrawable(R.drawable.glass_card_stroke) : null);
-            btnSepia.setForeground(theme == 1 ? getDrawable(R.drawable.glass_card_stroke) : null);
-            btnGreen.setForeground(theme == 2 ? getDrawable(R.drawable.glass_card_stroke) : null);
-            btnSpace.setForeground(theme == 3 ? getDrawable(R.drawable.glass_card_stroke) : null);
+            float selectedElevation = 8f;
+            btnClassic.setElevation(theme == 0 ? selectedElevation : 0f);
+            btnSepia.setElevation(theme == 1 ? selectedElevation : 0f);
+            btnGreen.setElevation(theme == 2 ? selectedElevation : 0f);
+            btnSpace.setElevation(theme == 3 ? selectedElevation : 0f);
         };
         updateThemeHighlight.run();
 

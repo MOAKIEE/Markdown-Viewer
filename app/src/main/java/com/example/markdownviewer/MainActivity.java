@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         SystemBarUtils.applyLightSystemBars(getWindow());
+        SystemBarUtils.applyInsetsToView(findViewById(R.id.btn_about), true, false);
 
         blurView = findViewById(R.id.blur_view);
         backgroundContainer = findViewById(R.id.background_container);

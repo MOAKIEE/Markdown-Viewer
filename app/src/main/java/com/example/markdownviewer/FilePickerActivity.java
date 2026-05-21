@@ -236,7 +236,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             String parentId = mPathStack.remove(mPathStack.size() - 1);
             loadFilesAsync(treeUri, parentId);
         } else {
-            super.onBackPressed();
+            getOnBackPressedDispatcher().onBackPressed();
         }
     }
 

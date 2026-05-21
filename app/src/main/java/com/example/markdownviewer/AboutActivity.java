@@ -16,6 +16,7 @@ public class AboutActivity extends AppCompatActivity {
         setContentView(R.layout.activity_about);
 
         SystemBarUtils.applyLightSystemBars(getWindow());
+        SystemBarUtils.applyInsetsToView(findViewById(R.id.top_bar), true, false);
 
         BlurView blurView = findViewById(R.id.blur_view);
         BlurHelper.setup(this, blurView);

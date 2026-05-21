@@ -56,4 +56,16 @@
     <string name="about_markwon">Markwon 渲染</string>
     <string name="about_blurview">BlurView 模糊</string>
     <string name="about_androidx">AndroidX 架构</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_back">返回</string>
+    <string name="a11y_search">搜索</string>
+    <string name="a11y_toc">目录</string>
+    <string name="a11y_settings">设置</string>
+    <string name="a11y_close">关闭</string>
+    <string name="a11y_search_prev">上一个匹配</string>
+    <string name="a11y_search_next">下一个匹配</string>
+    <string name="a11y_open_file">打开文件</string>
+    <string name="a11y_browse">浏览目录</string>
+    <string name="a11y_app_logo">应用图标</string>
 </resources>

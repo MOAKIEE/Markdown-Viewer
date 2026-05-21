@@ -24,7 +24,7 @@ public class FileUtils {
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Failed to query display name for URI: " + uri, e);
+                Log.w(TAG, "Failed to query display name", e);
             }
         }
 

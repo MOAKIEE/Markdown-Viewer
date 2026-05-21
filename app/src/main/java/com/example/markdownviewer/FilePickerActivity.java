@@ -158,7 +158,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Failed to query children for documentId: " + documentId, e);
+                Log.w(TAG, "Failed to query children", e);
             }
 
             Collections.sort(dirList, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
@@ -274,10 +274,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             if (i > 0) {
                 android.widget.ImageView ivDivider = new android.widget.ImageView(this);
                 ivDivider.setImageResource(R.drawable.ic_chevron_right);
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                    ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(
-                            ContextCompat.getColor(this, R.color.ios_text_secondary)));
-                }
+                ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(
+                        ContextCompat.getColor(this, R.color.ios_text_secondary)));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                         (int) (12 * scale + 0.5f), (int) (12 * scale + 0.5f));
                 lp.gravity = android.view.Gravity.CENTER_VERTICAL;

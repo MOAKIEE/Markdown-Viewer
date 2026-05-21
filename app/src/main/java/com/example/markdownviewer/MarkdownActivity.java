@@ -176,10 +176,9 @@ public class MarkdownActivity extends AppCompatActivity {
             ((View) parent).setBackgroundColor(bgColor);
         }
 
-        androidx.cardview.widget.CardView cardView =
-                (androidx.cardview.widget.CardView) markdownTextView.getParent();
-        if (cardView != null) {
-            cardView.setCardBackgroundColor(cardColor);
+        ViewParent cardParent = markdownTextView.getParent();
+        if (cardParent instanceof androidx.cardview.widget.CardView) {
+            ((androidx.cardview.widget.CardView) cardParent).setCardBackgroundColor(cardColor);
         }
 
         markdownTextView.setTextColor(textColor);
@@ -449,7 +448,7 @@ public class MarkdownActivity extends AppCompatActivity {
                     }
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Failed to query file size for URI: " + uri, e);
+                Log.w(TAG, "Failed to query file size", e);
             }
 
             if (fileSize > Constants.MAX_FILE_SIZE) {
@@ -477,7 +476,7 @@ public class MarkdownActivity extends AppCompatActivity {
                     }
                 }
             } catch (IOException e) {
-                Log.e(TAG, "Failed to read URI: " + uri, e);
+                Log.e(TAG, "Failed to read file", e);
             }
 
             if (!success) {

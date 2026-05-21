@@ -2,7 +2,7 @@ package com.example.markdownviewer;
 
 public final class Constants {
     public static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-    public static final int MAX_RECENT = 5;
+    public static final int MAX_RECENT = 20;
     public static final int MAX_RECENT_DISPLAY = 5;
 
     // Reader config

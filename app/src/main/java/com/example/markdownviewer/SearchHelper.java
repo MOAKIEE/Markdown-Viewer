@@ -16,6 +16,8 @@ import java.util.regex.Pattern;
 
 public final class SearchHelper {
 
+    private static final int MAX_MATCHES = 500;
+
     private final TextView textView;
     private final EditText etSearch;
     private final TextView tvCount;
@@ -65,13 +67,12 @@ public final class SearchHelper {
         try {
             Pattern pattern = Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE);
             Matcher matcher = pattern.matcher(src);
-            while (matcher.find()) {
+            while (matcher.find() && matches.size() < MAX_MATCHES) {
                 matches.add(new int[]{matcher.start(), matcher.end()});
             }
         } catch (Exception e) {
-            // 回退到 indexOf
             int index = src.toLowerCase().indexOf(query.toLowerCase());
-            while (index >= 0) {
+            while (index >= 0 && matches.size() < MAX_MATCHES) {
                 matches.add(new int[]{index, index + query.length()});
                 index = src.toLowerCase().indexOf(query.toLowerCase(), index + 1);
             }

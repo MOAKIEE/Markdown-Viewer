@@ -22,83 +22,88 @@ public class RecentFilesManager {
     private static final String JSON_KEY_NAME = "name";
     private static final String JSON_KEY_SCROLL_Y = "scroll_y";
 
-    private static volatile List<RecentEntry> sCache;
-    private static volatile boolean sCacheDirty;
+    private static final Object sLock = new Object();
+    private static List<RecentEntry> sCache;
 
     public static void addRecentFile(Context context, Uri uri) {
         if (uri == null) return;
         String uriString = uri.toString();
         String displayName = FileUtils.getDisplayName(context, uri);
-        List<RecentEntry> list = loadList(context);
+        synchronized (sLock) {
+            List<RecentEntry> list = loadListLocked(context);
 
-        int existingScrollY = 0;
-        for (RecentEntry entry : list) {
-            if (entry.uri.equals(uriString)) {
-                existingScrollY = entry.scrollY;
-                break;
+            int existingScrollY = 0;
+            for (RecentEntry entry : list) {
+                if (entry.uri.equals(uriString)) {
+                    existingScrollY = entry.scrollY;
+                    break;
+                }
             }
-        }
 
-        list.removeIf(e -> e.uri.equals(uriString));
-        list.add(0, new RecentEntry(uriString, displayName, existingScrollY));
-        while (list.size() > Constants.MAX_RECENT) {
-            list.remove(list.size() - 1);
+            list.removeIf(e -> e.uri.equals(uriString));
+            list.add(0, new RecentEntry(uriString, displayName, existingScrollY));
+            while (list.size() > Constants.MAX_RECENT) {
+                list.remove(list.size() - 1);
+            }
+            saveListLocked(context, list);
         }
-        saveList(context, list);
     }
 
     public static void updateScrollY(Context context, Uri uri, int scrollY) {
         if (uri == null) return;
         String uriString = uri.toString();
-        List<RecentEntry> list = loadList(context);
-        boolean changed = false;
-
-        for (int i = 0; i < list.size(); i++) {
-            RecentEntry old = list.get(i);
-            if (old.uri.equals(uriString)) {
-                list.set(i, new RecentEntry(old.uri, old.name, scrollY));
-                changed = true;
-                break;
+        synchronized (sLock) {
+            List<RecentEntry> list = loadListLocked(context);
+            for (int i = 0; i < list.size(); i++) {
+                RecentEntry old = list.get(i);
+                if (old.uri.equals(uriString)) {
+                    list.set(i, new RecentEntry(old.uri, old.name, scrollY));
+                    saveListLocked(context, list);
+                    return;
+                }
             }
-        }
-
-        if (changed) {
-            saveList(context, list);
         }
     }
 
     public static int getScrollY(Context context, Uri uri) {
         if (uri == null) return 0;
         String uriString = uri.toString();
-        List<RecentEntry> list = loadList(context);
-        for (RecentEntry entry : list) {
-            if (entry.uri.equals(uriString)) {
-                return entry.scrollY;
+        synchronized (sLock) {
+            List<RecentEntry> list = loadListLocked(context);
+            for (RecentEntry entry : list) {
+                if (entry.uri.equals(uriString)) {
+                    return entry.scrollY;
+                }
             }
         }
         return 0;
     }
 
     public static List<RecentEntry> getRecentFiles(Context context) {
-        return loadList(context);
+        synchronized (sLock) {
+            return loadListLocked(context);
+        }
     }
 
     public static void clear(Context context) {
-        sCache = null;
-        sCacheDirty = false;
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().remove(KEY_RECENT).apply();
+        synchronized (sLock) {
+            sCache = null;
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().remove(KEY_RECENT).apply();
+        }
     }
 
     public static void removeRecentFile(Context context, String uriString) {
         if (uriString == null) return;
-        List<RecentEntry> list = loadList(context);
-        list.removeIf(e -> e.uri.equals(uriString));
-        saveList(context, list);
+        synchronized (sLock) {
+            List<RecentEntry> list = loadListLocked(context);
+            list.removeIf(e -> e.uri.equals(uriString));
+            saveListLocked(context, list);
+        }
     }
 
-    private static List<RecentEntry> loadList(Context context) {
-        if (sCache != null && !sCacheDirty) {
+    private static List<RecentEntry> loadListLocked(Context context) {
+        if (sCache != null) {
             return new ArrayList<>(sCache);
         }
         List<RecentEntry> result = new ArrayList<>();
@@ -106,7 +111,6 @@ public class RecentFilesManager {
         String raw = prefs.getString(KEY_RECENT, "");
         if (TextUtils.isEmpty(raw)) {
             sCache = result;
-            sCacheDirty = false;
             return new ArrayList<>(result);
         }
         try {
@@ -117,14 +121,13 @@ public class RecentFilesManager {
                 result.add(new RecentEntry(obj.getString(JSON_KEY_URI), obj.getString(JSON_KEY_NAME), scrollY));
             }
         } catch (JSONException e) {
-            Log.w(TAG, "Failed to parse recent files JSON", e);
+            Log.w(TAG, "Failed to parse recent files", e);
         }
         sCache = result;
-        sCacheDirty = false;
         return new ArrayList<>(result);
     }
 
-    private static void saveList(Context context, List<RecentEntry> list) {
+    private static void saveListLocked(Context context, List<RecentEntry> list) {
         JSONArray arr = new JSONArray();
         for (RecentEntry entry : list) {
             JSONObject obj = new JSONObject();
@@ -132,13 +135,10 @@ public class RecentFilesManager {
                 obj.put(JSON_KEY_URI, entry.uri);
                 obj.put(JSON_KEY_NAME, entry.name);
                 obj.put(JSON_KEY_SCROLL_Y, entry.scrollY);
-            } catch (JSONException e) {
-                Log.w(TAG, "Failed to serialize recent entry: " + entry.uri, e);
-            }
+            } catch (JSONException ignored) {}
             arr.put(obj);
         }
         sCache = new ArrayList<>(list);
-        sCacheDirty = false;
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putString(KEY_RECENT, arr.toString()).apply();
     }

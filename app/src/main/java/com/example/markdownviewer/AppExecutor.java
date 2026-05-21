@@ -14,8 +14,7 @@ public final class AppExecutor {
     private final Handler mMainThread;
 
     private AppExecutor() {
-        int cpuCount = Runtime.getRuntime().availableProcessors();
-        mDiskIO = Executors.newFixedThreadPool(Math.max(2, cpuCount));
+        mDiskIO = Executors.newFixedThreadPool(2);
         mMainThread = new Handler(Looper.getMainLooper());
     }
 

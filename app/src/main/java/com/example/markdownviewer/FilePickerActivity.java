@@ -242,17 +242,16 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private void updateBreadcrumbs() {
         if (layoutBreadcrumbs == null || scrollBreadcrumbs == null || treeUri == null) return;
-        layoutBreadcrumbs.removeAllViews();
 
         String rootDocId = DocumentsContract.getDocumentId(treeUri);
         if (mPathStack.isEmpty() && (currentPath == null || currentPath.equals(rootDocId))) {
             scrollBreadcrumbs.setVisibility(View.GONE);
+            layoutBreadcrumbs.removeAllViews();
             return;
         }
 
         scrollBreadcrumbs.setVisibility(View.VISIBLE);
         float scale = getResources().getDisplayMetrics().density;
-        int paddingPx = (int) (8 * scale + 0.5f);
 
         List<PathSegment> segments = new ArrayList<>();
         segments.add(new PathSegment(extractDisplayName(rootDocId), rootDocId, -1));
@@ -268,46 +267,75 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             segments.add(new PathSegment(extractDisplayName(currentPath), currentPath, -2));
         }
 
+        int requiredChildCount = segments.size() * 2 - 1;
+        int existingChildCount = layoutBreadcrumbs.getChildCount();
+
+        if (existingChildCount > requiredChildCount) {
+            layoutBreadcrumbs.removeViews(requiredChildCount, existingChildCount - requiredChildCount);
+        }
+
         for (int i = 0; i < segments.size(); i++) {
             PathSegment segment = segments.get(i);
+            int childIndex = i * 2;
 
             if (i > 0) {
-                android.widget.ImageView ivDivider = new android.widget.ImageView(this);
-                ivDivider.setImageResource(R.drawable.ic_chevron_right);
-                ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(
-                        ContextCompat.getColor(this, R.color.ios_text_secondary)));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        (int) (12 * scale + 0.5f), (int) (12 * scale + 0.5f));
-                lp.gravity = android.view.Gravity.CENTER_VERTICAL;
-                lp.leftMargin = (int) (4 * scale + 0.5f);
-                lp.rightMargin = (int) (4 * scale + 0.5f);
-                ivDivider.setLayoutParams(lp);
-                layoutBreadcrumbs.addView(ivDivider);
+                int dividerIndex = childIndex - 1;
+                android.widget.ImageView ivDivider;
+                if (dividerIndex < existingChildCount && layoutBreadcrumbs.getChildAt(dividerIndex) instanceof android.widget.ImageView) {
+                    ivDivider = (android.widget.ImageView) layoutBreadcrumbs.getChildAt(dividerIndex);
+                } else {
+                    ivDivider = new android.widget.ImageView(this);
+                    ivDivider.setImageResource(R.drawable.ic_chevron_right);
+                    ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(
+                            ContextCompat.getColor(this, R.color.ios_text_secondary)));
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                            (int) (12 * scale + 0.5f), (int) (12 * scale + 0.5f));
+                    lp.gravity = android.view.Gravity.CENTER_VERTICAL;
+                    lp.leftMargin = (int) (4 * scale + 0.5f);
+                    lp.rightMargin = (int) (4 * scale + 0.5f);
+                    ivDivider.setLayoutParams(lp);
+                    if (dividerIndex < layoutBreadcrumbs.getChildCount()) {
+                        layoutBreadcrumbs.removeViewAt(dividerIndex);
+                    }
+                    layoutBreadcrumbs.addView(ivDivider, dividerIndex);
+                }
             }
 
-            TextView tvSegment = new TextView(this);
+            TextView tvSegment;
+            if (childIndex < existingChildCount && layoutBreadcrumbs.getChildAt(childIndex) instanceof TextView) {
+                tvSegment = (TextView) layoutBreadcrumbs.getChildAt(childIndex);
+            } else {
+                tvSegment = new TextView(this);
+                tvSegment.setTextSize(13);
+                tvSegment.setSingleLine(true);
+                tvSegment.setGravity(android.view.Gravity.CENTER);
+                tvSegment.setBackgroundResource(R.drawable.bg_breadcrumb_pill);
+                int padLeftRight = (int) (12 * scale + 0.5f);
+                int padTopBottom = (int) (6 * scale + 0.5f);
+                tvSegment.setPadding(padLeftRight, padTopBottom, padLeftRight, padTopBottom);
+                LinearLayout.LayoutParams lpPill = new LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+                lpPill.leftMargin = (int) (2 * scale + 0.5f);
+                lpPill.rightMargin = (int) (2 * scale + 0.5f);
+                tvSegment.setLayoutParams(lpPill);
+                if (childIndex < layoutBreadcrumbs.getChildCount()) {
+                    layoutBreadcrumbs.removeViewAt(childIndex);
+                }
+                layoutBreadcrumbs.addView(tvSegment, childIndex);
+            }
+
             tvSegment.setText(segment.name);
-            tvSegment.setTextSize(13);
-            tvSegment.setSingleLine(true);
-            tvSegment.setGravity(android.view.Gravity.CENTER);
-            tvSegment.setBackgroundResource(R.drawable.bg_breadcrumb_pill);
-
-            int padLeftRight = (int) (12 * scale + 0.5f);
-            int padTopBottom = (int) (6 * scale + 0.5f);
-            tvSegment.setPadding(padLeftRight, padTopBottom, padLeftRight, padTopBottom);
-
-            LinearLayout.LayoutParams lpPill = new LinearLayout.LayoutParams(
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
-            lpPill.leftMargin = (int) (2 * scale + 0.5f);
-            lpPill.rightMargin = (int) (2 * scale + 0.5f);
-            tvSegment.setLayoutParams(lpPill);
+            tvSegment.setOnClickListener(null);
 
             boolean isLast = (i == segments.size() - 1);
             if (isLast) {
                 tvSegment.setTextColor(ContextCompat.getColor(this, R.color.ios_text_primary));
                 tvSegment.setTypeface(null, android.graphics.Typeface.BOLD);
+                tvSegment.setClickable(false);
+                tvSegment.setFocusable(false);
             } else {
                 tvSegment.setTextColor(ContextCompat.getColor(this, R.color.ios_blue));
+                tvSegment.setTypeface(null, android.graphics.Typeface.NORMAL);
                 tvSegment.setClickable(true);
                 tvSegment.setFocusable(true);
                 tvSegment.setOnClickListener(v -> {
@@ -323,7 +351,6 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                     }
                 });
             }
-            layoutBreadcrumbs.addView(tvSegment);
         }
 
         scrollBreadcrumbs.post(() -> scrollBreadcrumbs.fullScroll(View.FOCUS_RIGHT));

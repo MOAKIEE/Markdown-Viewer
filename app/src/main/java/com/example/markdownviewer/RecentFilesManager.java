@@ -57,6 +57,7 @@ public class RecentFilesManager {
             for (int i = 0; i < list.size(); i++) {
                 RecentEntry old = list.get(i);
                 if (old.uri.equals(uriString)) {
+                    if (old.scrollY == scrollY) return;
                     list.set(i, new RecentEntry(old.uri, old.name, scrollY));
                     saveListLocked(context, list);
                     return;

@@ -71,10 +71,12 @@ public final class SearchHelper {
                 matches.add(new int[]{matcher.start(), matcher.end()});
             }
         } catch (Exception e) {
-            int index = src.toLowerCase().indexOf(query.toLowerCase());
+            String srcLower = src.toLowerCase();
+            String queryLower = query.toLowerCase();
+            int index = srcLower.indexOf(queryLower);
             while (index >= 0 && matches.size() < MAX_MATCHES) {
                 matches.add(new int[]{index, index + query.length()});
-                index = src.toLowerCase().indexOf(query.toLowerCase(), index + 1);
+                index = srcLower.indexOf(queryLower, index + 1);
             }
         }
 
@@ -91,15 +93,17 @@ public final class SearchHelper {
 
     public void nextMatch() {
         if (matches.isEmpty()) { performSearch(); return; }
+        int oldMatch = currentMatch;
         currentMatch = (currentMatch + 1) % matches.size();
-        applyHighlights();
+        updateCurrentHighlight(oldMatch, currentMatch);
         updateCount();
     }
 
     public void prevMatch() {
         if (matches.isEmpty()) { performSearch(); return; }
+        int oldMatch = currentMatch;
         currentMatch = (currentMatch - 1 + matches.size()) % matches.size();
-        applyHighlights();
+        updateCurrentHighlight(oldMatch, currentMatch);
         updateCount();
     }
 
@@ -141,6 +145,30 @@ public final class SearchHelper {
             int[] match = matches.get(i);
             int color = (i == currentMatch) ? currentHighlightColor : highlightColor;
             spannable.setSpan(new BackgroundColorSpan(color), match[0], match[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+    }
+
+    private void updateCurrentHighlight(int oldIndex, int newIndex) {
+        CharSequence text = textView.getText();
+        if (!(text instanceof Spannable)) return;
+        Spannable spannable = (Spannable) text;
+
+        if (oldIndex >= 0 && oldIndex < matches.size()) {
+            int[] oldMatch = matches.get(oldIndex);
+            BackgroundColorSpan[] spans = spannable.getSpans(oldMatch[0], oldMatch[1], BackgroundColorSpan.class);
+            for (BackgroundColorSpan span : spans) {
+                spannable.removeSpan(span);
+            }
+            spannable.setSpan(new BackgroundColorSpan(highlightColor), oldMatch[0], oldMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        if (newIndex >= 0 && newIndex < matches.size()) {
+            int[] newMatch = matches.get(newIndex);
+            BackgroundColorSpan[] spans = spannable.getSpans(newMatch[0], newMatch[1], BackgroundColorSpan.class);
+            for (BackgroundColorSpan span : spans) {
+                spannable.removeSpan(span);
+            }
+            spannable.setSpan(new BackgroundColorSpan(currentHighlightColor), newMatch[0], newMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
     }
 

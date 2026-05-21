@@ -15,22 +15,30 @@ public final class TocParser {
         List<TocEntry> entries = new ArrayList<>();
         if (content == null) return entries;
 
-        String[] lines = content.split("\n");
         boolean inCodeBlock = false;
-        for (int i = 0; i < lines.length; i++) {
-            String trimmed = lines[i].trim();
-            if (trimmed.startsWith("```")) {
-                inCodeBlock = !inCodeBlock;
-                continue;
-            }
-            if (inCodeBlock) continue;
+        int lineIndex = 0;
+        int lineStart = 0;
+        int len = content.length();
 
-            Matcher m = HEADING_PATTERN.matcher(trimmed);
-            if (m.find()) {
-                int level = m.group(1).length();
-                String title = m.group(2).trim();
-                entries.add(new TocEntry(title, level, i));
+        while (lineStart <= len) {
+            int lineEnd = content.indexOf('\n', lineStart);
+            if (lineEnd < 0) lineEnd = len;
+
+            String line = content.substring(lineStart, lineEnd).trim();
+
+            if (line.startsWith("```")) {
+                inCodeBlock = !inCodeBlock;
+            } else if (!inCodeBlock) {
+                Matcher m = HEADING_PATTERN.matcher(line);
+                if (m.find()) {
+                    int level = m.group(1).length();
+                    String title = m.group(2).trim();
+                    entries.add(new TocEntry(title, level, lineIndex, lineStart));
+                }
             }
+
+            lineStart = lineEnd + 1;
+            lineIndex++;
         }
         return entries;
     }
@@ -39,11 +47,13 @@ public final class TocParser {
         public final String title;
         public final int level;
         public final int lineIndex;
+        public final int charOffset;
 
-        public TocEntry(String title, int level, int lineIndex) {
+        public TocEntry(String title, int level, int lineIndex, int charOffset) {
             this.title = title;
             this.level = level;
             this.lineIndex = lineIndex;
+            this.charOffset = charOffset;
         }
     }
 }

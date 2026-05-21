@@ -149,11 +149,20 @@ public class MarkdownActivity extends AppCompatActivity {
 
         applyColorsToViews(bgColor, cardColor, textColor, toolbarBgColor, hintColor);
         markdownTextView.setLineSpacing(0, lineSpacing);
+        markdownTextView.setLinkTextColor(ReaderTheme.getLinkColor(this, themeMode));
 
-        markwon = MarkwonFactory.create(this, markdownTextView, themeMode);
         if (rawMarkdownContent != null && !rawMarkdownContent.isEmpty()) {
-            Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
-            markwon.setParsedMarkdown(markdownTextView, spanned);
+            boolean needsLatex = MarkwonFactory.contentNeedsLatex(rawMarkdownContent);
+            markwon = MarkwonFactory.create(this, markdownTextView, themeMode, needsLatex);
+            AppExecutor.getInstance().diskIO().execute(() -> {
+                final Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
+                AppExecutor.getInstance().mainThread().post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    markwon.setParsedMarkdown(markdownTextView, spanned);
+                });
+            });
+        } else {
+            markwon = MarkwonFactory.create(this, markdownTextView, themeMode);
         }
 
         if (ReaderTheme.useLightStatusBar(themeMode) && !dark) {
@@ -343,13 +352,18 @@ public class MarkdownActivity extends AppCompatActivity {
         if (text == null) return;
         android.text.Layout layout = markdownTextView.getLayout();
         if (layout == null) return;
+
         int offset = 0;
-        int currentLine = 0;
-        for (int i = 0; i < text.length() && currentLine < lineIndex; i++) {
-            if (text.charAt(i) == '\n') currentLine++;
-            offset++;
+        if (tocEntries != null) {
+            for (TocParser.TocEntry entry : tocEntries) {
+                if (entry.lineIndex == lineIndex) {
+                    offset = entry.charOffset;
+                    break;
+                }
+            }
         }
-        int line = layout.getLineForOffset(offset);
+
+        int line = layout.getLineForOffset(Math.min(offset, text.length()));
         int y = layout.getLineTop(line);
 
         int scrollViewHeight = scrollView.getHeight();
@@ -486,12 +500,16 @@ public class MarkdownActivity extends AppCompatActivity {
 
             final String markdown = content.toString();
             final List<TocParser.TocEntry> toc = TocParser.parse(markdown);
+            final boolean needsLatex = MarkwonFactory.contentNeedsLatex(markdown);
+            final Markwon bgMarkwon = MarkwonFactory.create(
+                    MarkdownActivity.this, markdownTextView, currentThemeMode, needsLatex);
+            final Spanned spanned = bgMarkwon.toMarkdown(markdown);
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
+                markwon = bgMarkwon;
                 tocEntries = toc;
                 rawMarkdownContent = markdown;
-                Spanned spanned = markwon.toMarkdown(markdown);
                 renderContent(spanned, uri);
             });
         });

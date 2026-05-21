@@ -46,7 +46,11 @@ public class FileAdapter extends ListAdapter<FileItem, FileAdapter.FileViewHolde
     public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
         FileItem fileItem = getItem(position);
         holder.bind(fileItem);
-        holder.itemView.setOnClickListener(v -> listener.onFileClick(fileItem, holder.getAdapterPosition()));
+        holder.itemView.setOnClickListener(v -> {
+            int pos = holder.getAdapterPosition();
+            if (pos == RecyclerView.NO_POSITION) return;
+            listener.onFileClick(getItem(pos), pos);
+        });
     }
 
     static class FileViewHolder extends RecyclerView.ViewHolder {

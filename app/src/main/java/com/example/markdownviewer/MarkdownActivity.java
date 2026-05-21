@@ -23,8 +23,10 @@ import android.widget.Toast;
 import android.widget.ProgressBar;
 import android.util.TypedValue;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
@@ -59,6 +61,9 @@ public class MarkdownActivity extends AppCompatActivity {
 
     private SharedPreferences readerPrefs;
     private int currentThemeMode = 0;
+    private int cachedMarkwonTheme = -1;
+    private boolean cachedMarkwonLatex = false;
+    private MarkdownViewModel viewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,6 +117,33 @@ public class MarkdownActivity extends AppCompatActivity {
         Uri fileUri = getIntent().getData();
         String fileName = getIntent().getStringExtra("file_name");
 
+        viewModel = new ViewModelProvider(this).get(MarkdownViewModel.class);
+
+        if (viewModel.hasContent()) {
+            rawMarkdownContent = viewModel.getRawMarkdownContent();
+            currentFileUri = viewModel.getFileUri();
+            tocEntries = viewModel.getTocEntries();
+            savedScrollY = viewModel.getScrollY();
+            String title = viewModel.getTitle();
+            if (title != null) tvTitle.setText(title);
+            boolean needsLatex = MarkwonFactory.contentNeedsLatex(rawMarkdownContent);
+            markwon = MarkwonFactory.create(this, markdownTextView, currentThemeMode, needsLatex);
+            cachedMarkwonTheme = currentThemeMode;
+            cachedMarkwonLatex = needsLatex;
+            Spanned cached = viewModel.getRenderedContent();
+            if (cached != null) {
+                markwon.setParsedMarkdown(markdownTextView, cached);
+            } else {
+                Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
+                markwon.setParsedMarkdown(markdownTextView, spanned);
+                viewModel.setRenderedContent(spanned);
+            }
+            if (savedScrollY > 0) {
+                scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+            }
+            return;
+        }
+
         if (fileName != null) {
             tvTitle.setText(fileName);
         } else if (fileUri != null) {
@@ -128,6 +160,18 @@ public class MarkdownActivity extends AppCompatActivity {
         super.onPause();
         if (scrollView != null && currentFileUri != null) {
             RecentFilesManager.updateScrollY(this, currentFileUri, scrollView.getScrollY());
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (viewModel != null) {
+            viewModel.setRawMarkdownContent(rawMarkdownContent);
+            viewModel.setFileUri(currentFileUri);
+            viewModel.setTocEntries(tocEntries);
+            viewModel.setScrollY(scrollView != null ? scrollView.getScrollY() : 0);
+            viewModel.setTitle(tvTitle != null ? tvTitle.getText().toString() : null);
         }
     }
 
@@ -153,7 +197,12 @@ public class MarkdownActivity extends AppCompatActivity {
 
         if (rawMarkdownContent != null && !rawMarkdownContent.isEmpty()) {
             boolean needsLatex = MarkwonFactory.contentNeedsLatex(rawMarkdownContent);
-            markwon = MarkwonFactory.create(this, markdownTextView, themeMode, needsLatex);
+            boolean needsRebuild = (themeMode != cachedMarkwonTheme) || (needsLatex != cachedMarkwonLatex);
+            if (needsRebuild) {
+                cachedMarkwonTheme = themeMode;
+                cachedMarkwonLatex = needsLatex;
+                markwon = MarkwonFactory.create(this, markdownTextView, themeMode, needsLatex);
+            }
             AppExecutor.getInstance().diskIO().execute(() -> {
                 final Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
                 AppExecutor.getInstance().mainThread().post(() -> {
@@ -163,6 +212,8 @@ public class MarkdownActivity extends AppCompatActivity {
             });
         } else {
             markwon = MarkwonFactory.create(this, markdownTextView, themeMode);
+            cachedMarkwonTheme = themeMode;
+            cachedMarkwonLatex = false;
         }
 
         if (ReaderTheme.useLightStatusBar(themeMode) && !dark) {
@@ -350,8 +401,6 @@ public class MarkdownActivity extends AppCompatActivity {
     private void scrollToLine(int lineIndex) {
         CharSequence text = markdownTextView.getText();
         if (text == null) return;
-        android.text.Layout layout = markdownTextView.getLayout();
-        if (layout == null) return;
 
         int offset = 0;
         if (tocEntries != null) {
@@ -363,14 +412,22 @@ public class MarkdownActivity extends AppCompatActivity {
             }
         }
 
-        int line = layout.getLineForOffset(Math.min(offset, text.length()));
-        int y = layout.getLineTop(line);
+        final int targetOffset = offset;
+        markdownTextView.post(() -> {
+            android.text.Layout layout = markdownTextView.getLayout();
+            if (layout == null) return;
+            CharSequence t = markdownTextView.getText();
+            if (t == null) return;
 
-        int scrollViewHeight = scrollView.getHeight();
-        int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
-        if (targetY < 0) targetY = 0;
+            int line = layout.getLineForOffset(Math.min(targetOffset, t.length()));
+            int y = layout.getLineTop(line);
 
-        scrollView.smoothScrollTo(0, targetY);
+            int scrollViewHeight = scrollView.getHeight();
+            int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
+            if (targetY < 0) targetY = 0;
+
+            scrollView.smoothScrollTo(0, targetY);
+        });
     }
 
     private class TocAdapter extends BaseAdapter {
@@ -442,7 +499,7 @@ public class MarkdownActivity extends AppCompatActivity {
     private void loadMarkdownFromUri(Uri uri) {
         if (uri == null) return;
         String scheme = uri.getScheme();
-        if (!"content".equals(scheme) && !"file".equals(scheme)) {
+        if (!"content".equals(scheme)) {
             Toast.makeText(this, R.string.error_unsupported_source, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -451,6 +508,8 @@ public class MarkdownActivity extends AppCompatActivity {
         savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
 
         showLoadingState();
+
+        final float textSizePx = markdownTextView.getTextSize();
 
         AppExecutor.getInstance().diskIO().execute(() -> {
             long fileSize = 0;
@@ -498,11 +557,11 @@ public class MarkdownActivity extends AppCompatActivity {
                 return;
             }
 
-            final String markdown = content.toString();
+            final String markdown = MarkwonFactory.sanitizeHtml(content.toString());
             final List<TocParser.TocEntry> toc = TocParser.parse(markdown);
             final boolean needsLatex = MarkwonFactory.contentNeedsLatex(markdown);
             final Markwon bgMarkwon = MarkwonFactory.create(
-                    MarkdownActivity.this, markdownTextView, currentThemeMode, needsLatex);
+                    MarkdownActivity.this, textSizePx, currentThemeMode, needsLatex);
             final Spanned spanned = bgMarkwon.toMarkdown(markdown);
 
             AppExecutor.getInstance().mainThread().post(() -> {
@@ -534,6 +593,14 @@ public class MarkdownActivity extends AppCompatActivity {
     private void renderContent(Spanned spanned, Uri uri) {
         markwon.setParsedMarkdown(markdownTextView, spanned);
         RecentFilesManager.addRecentFile(this, uri);
+
+        if (viewModel != null) {
+            viewModel.setRawMarkdownContent(rawMarkdownContent);
+            viewModel.setFileUri(currentFileUri);
+            viewModel.setTocEntries(tocEntries);
+            viewModel.setRenderedContent(spanned);
+            viewModel.setTitle(tvTitle.getText().toString());
+        }
 
         progressLoading.animate().alpha(0f).setDuration(Constants.ANIM_DURATION_FADE).withEndAction(() -> {
             progressLoading.setVisibility(View.GONE);

@@ -41,6 +41,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     private LinearLayout layoutBreadcrumbs;
 
     private final ArrayList<String> mPathStack = new ArrayList<>();
+    private volatile int loadGeneration = 0;
 
     private final ActivityResultLauncher<Intent> treePickerLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -126,6 +127,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         emptyView.setVisibility(View.GONE);
         progressBar.setVisibility(View.VISIBLE);
 
+        final int generation = ++loadGeneration;
+
         AppExecutor.getInstance().diskIO().execute(() -> {
             List<FileItem> fileItems = new ArrayList<>();
             Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, documentId);
@@ -173,6 +176,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
+                if (generation != loadGeneration) return;
                 progressBar.setVisibility(View.GONE);
                 if (fileItems.isEmpty()) {
                     recyclerView.setVisibility(View.GONE);

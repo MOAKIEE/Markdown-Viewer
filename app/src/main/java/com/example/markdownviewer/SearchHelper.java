@@ -29,6 +29,10 @@ public final class SearchHelper {
     private int highlightColor;
     private int currentHighlightColor;
 
+    static final class SearchHighlightSpan extends BackgroundColorSpan {
+        SearchHighlightSpan(int color) { super(color); }
+    }
+
     public SearchHelper(TextView textView, EditText etSearch, TextView tvCount,
                         int highlightColor, int currentHighlightColor) {
         this.textView = textView;
@@ -111,8 +115,8 @@ public final class SearchHelper {
         CharSequence text = textView.getText();
         if (text instanceof Spannable) {
             Spannable spannable = (Spannable) text;
-            BackgroundColorSpan[] spans = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
-            for (BackgroundColorSpan span : spans) {
+            SearchHighlightSpan[] spans = spannable.getSpans(0, spannable.length(), SearchHighlightSpan.class);
+            for (SearchHighlightSpan span : spans) {
                 spannable.removeSpan(span);
             }
         }
@@ -135,16 +139,15 @@ public final class SearchHelper {
         if (!(text instanceof Spannable)) return;
         Spannable spannable = (Spannable) text;
 
-        // 仅移除已存在的高亮 span，避免全量扫描所有 span 类型
-        BackgroundColorSpan[] existing = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
-        for (BackgroundColorSpan span : existing) {
+        SearchHighlightSpan[] existing = spannable.getSpans(0, spannable.length(), SearchHighlightSpan.class);
+        for (SearchHighlightSpan span : existing) {
             spannable.removeSpan(span);
         }
 
         for (int i = 0; i < matches.size(); i++) {
             int[] match = matches.get(i);
             int color = (i == currentMatch) ? currentHighlightColor : highlightColor;
-            spannable.setSpan(new BackgroundColorSpan(color), match[0], match[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spannable.setSpan(new SearchHighlightSpan(color), match[0], match[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
     }
 
@@ -155,20 +158,20 @@ public final class SearchHelper {
 
         if (oldIndex >= 0 && oldIndex < matches.size()) {
             int[] oldMatch = matches.get(oldIndex);
-            BackgroundColorSpan[] spans = spannable.getSpans(oldMatch[0], oldMatch[1], BackgroundColorSpan.class);
-            for (BackgroundColorSpan span : spans) {
+            SearchHighlightSpan[] spans = spannable.getSpans(oldMatch[0], oldMatch[1], SearchHighlightSpan.class);
+            for (SearchHighlightSpan span : spans) {
                 spannable.removeSpan(span);
             }
-            spannable.setSpan(new BackgroundColorSpan(highlightColor), oldMatch[0], oldMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spannable.setSpan(new SearchHighlightSpan(highlightColor), oldMatch[0], oldMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
 
         if (newIndex >= 0 && newIndex < matches.size()) {
             int[] newMatch = matches.get(newIndex);
-            BackgroundColorSpan[] spans = spannable.getSpans(newMatch[0], newMatch[1], BackgroundColorSpan.class);
-            for (BackgroundColorSpan span : spans) {
+            SearchHighlightSpan[] spans = spannable.getSpans(newMatch[0], newMatch[1], SearchHighlightSpan.class);
+            for (SearchHighlightSpan span : spans) {
                 spannable.removeSpan(span);
             }
-            spannable.setSpan(new BackgroundColorSpan(currentHighlightColor), newMatch[0], newMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            spannable.setSpan(new SearchHighlightSpan(currentHighlightColor), newMatch[0], newMatch[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
     }
 

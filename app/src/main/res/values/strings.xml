@@ -52,6 +52,7 @@
     <string name="error_font_size_min">字号已达最小限制</string>
     <string name="error_font_size_max">字号已达最大限制</string>
     <string name="recent_file_invalid">该文件已移位或失效，已自动清除记录</string>
+    <string name="main_clear_recent">清除历史</string>
     <string name="about_markwon">Markwon 渲染</string>
     <string name="about_blurview">BlurView 模糊</string>
     <string name="about_androidx">AndroidX 架构</string>

@@ -196,7 +196,9 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     private boolean isMarkdownFile(String name) {
         if (name == null) return false;
         String lower = name.toLowerCase();
-        return lower.endsWith(".md") || lower.endsWith(".markdown");
+        return lower.endsWith(".md") || lower.endsWith(".markdown")
+                || lower.endsWith(".mdown") || lower.endsWith(".mkd")
+                || lower.endsWith(".mkdn") || lower.endsWith(".mdwn");
     }
 
     private String extractDisplayName(String documentId) {

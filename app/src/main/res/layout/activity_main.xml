@@ -215,7 +215,7 @@
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:clickable="true"
                             android:focusable="true"
-                            android:contentDescription="清除历史" />
+                            android:contentDescription="@string/main_clear_recent" />
                     </RelativeLayout>
 
                     <LinearLayout

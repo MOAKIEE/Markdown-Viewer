@@ -54,6 +54,12 @@
     <color name="theme_space_block_quote">#304988ED</color>
     <color name="theme_space_link">#FF4988ED</color>
 
+    <!-- Search highlight colors -->
+    <color name="search_highlight_light">#FFFFFF00</color>
+    <color name="search_highlight_current_light">#FFFFA500</color>
+    <color name="search_highlight_dark">#FF666600</color>
+    <color name="search_highlight_current_dark">#FF996600</color>
+
     <!-- Shared UI colors -->
     <color name="card_parent_tint">#0D007AFF</color>
     <color name="spacing_highlight_active">#40808080</color>

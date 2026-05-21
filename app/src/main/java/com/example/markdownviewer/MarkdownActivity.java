@@ -1,19 +1,12 @@
 package com.example.markdownviewer;
 
-import android.app.AlertDialog;
-import com.google.android.material.bottomsheet.BottomSheetDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.Configuration;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
-import android.text.Editable;
-import android.text.Layout;
-import android.text.Spannable;
-import android.text.TextWatcher;
-import android.text.style.BackgroundColorSpan;
+import android.text.Spanned;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,69 +20,45 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.os.Handler;
-import android.os.Looper;
-import android.text.Spanned;
 import android.widget.ProgressBar;
 import android.util.TypedValue;
-import io.noties.markwon.AbstractMarkwonPlugin;
-import io.noties.markwon.core.MarkwonTheme;
-import androidx.annotation.NonNull;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import io.noties.markwon.Markwon;
-import io.noties.markwon.html.HtmlPlugin;
-import io.noties.markwon.image.glide.GlideImagesPlugin;
-import io.noties.markwon.ext.latex.JLatexMathPlugin;
-import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
-import io.noties.markwon.ext.tables.TablePlugin;
-import io.noties.markwon.ext.strikethrough.StrikethroughPlugin;
-import io.noties.markwon.linkify.LinkifyPlugin;
 
 public class MarkdownActivity extends AppCompatActivity {
 
     private static final String TAG = "MarkdownActivity";
-    private static final int HIGHLIGHT_COLOR = 0xFFFFFF00;
-    private static final int CURRENT_HIGHLIGHT_COLOR = 0xFFFFA500;
 
     private TextView markdownTextView;
     private TextView tvTitle;
     private Markwon markwon;
     private ScrollView scrollView;
+    private ProgressBar progressLoading;
 
     private View searchBar;
     private EditText etSearch;
-    private TextView tvSearchCount;
-    private View btnSearchPrev;
-    private View btnSearchNext;
-    private View btnSearchClose;
 
     private String rawMarkdownContent = "";
-    private List<int[]> searchMatches = new ArrayList<>();
-    private int currentMatchIndex = -1;
-    private List<TocEntry> tocEntries = new ArrayList<>();
-    private ProgressBar progressLoading;
-
-    private final Handler searchHandler = new Handler(Looper.getMainLooper());
-    private Runnable searchRunnable = null;
+    private List<TocParser.TocEntry> tocEntries;
+    private SearchHelper searchHelper;
 
     private int savedScrollY = 0;
     private Uri currentFileUri = null;
 
     private SharedPreferences readerPrefs;
+    private int currentThemeMode = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,6 +68,7 @@ public class MarkdownActivity extends AppCompatActivity {
         SystemBarUtils.applyLightSystemBars(getWindow());
 
         readerPrefs = getSharedPreferences(Constants.PREFS_READER_CONFIG, MODE_PRIVATE);
+        currentThemeMode = readerPrefs.getInt("theme_mode", 0);
 
         tvTitle = findViewById(R.id.tv_title);
         markdownTextView = findViewById(R.id.markdown_text);
@@ -108,9 +78,8 @@ public class MarkdownActivity extends AppCompatActivity {
         int savedFontSize = readerPrefs.getInt("font_size", Constants.FONT_SIZE_DEFAULT);
         markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedFontSize);
 
-        int savedThemeMode = readerPrefs.getInt("theme_mode", 0);
         float savedLineSpacing = readerPrefs.getFloat("line_spacing", Constants.LINE_SPACING_DEFAULT);
-        applyReaderTheme(savedThemeMode, savedLineSpacing);
+        applyReaderTheme(currentThemeMode, savedLineSpacing);
 
         findViewById(R.id.btn_back).setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         findViewById(R.id.btn_search).setOnClickListener(v -> showSearchBar());
@@ -121,41 +90,27 @@ public class MarkdownActivity extends AppCompatActivity {
 
         searchBar = findViewById(R.id.search_bar);
         etSearch = findViewById(R.id.et_search);
-        tvSearchCount = findViewById(R.id.tv_search_count);
-        btnSearchPrev = findViewById(R.id.btn_search_prev);
-        btnSearchNext = findViewById(R.id.btn_search_next);
-        btnSearchClose = findViewById(R.id.btn_search_close);
+        TextView tvSearchCount = findViewById(R.id.tv_search_count);
 
-        btnSearchClose.setOnClickListener(v -> hideSearchBar());
-        btnSearchNext.setOnClickListener(v -> nextMatch());
-        btnSearchPrev.setOnClickListener(v -> prevMatch());
+        searchHelper = new SearchHelper(markdownTextView, etSearch, tvSearchCount,
+                ReaderTheme.getHighlightColor(this, currentThemeMode),
+                ReaderTheme.getCurrentHighlightColor(this, currentThemeMode));
+        searchHelper.attachToEditText();
 
-        etSearch.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (searchRunnable != null) {
-                    searchHandler.removeCallbacks(searchRunnable);
-                }
-                searchRunnable = () -> performSearch();
-                searchHandler.postDelayed(searchRunnable, Constants.SEARCH_DEBOUNCE_MS);
-            }
-        });
+        findViewById(R.id.btn_search_close).setOnClickListener(v -> hideSearchBar());
+        findViewById(R.id.btn_search_next).setOnClickListener(v -> searchHelper.nextMatch());
+        findViewById(R.id.btn_search_prev).setOnClickListener(v -> searchHelper.prevMatch());
 
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                if (searchRunnable != null) {
-                    searchHandler.removeCallbacks(searchRunnable);
-                }
-                performSearch();
+                searchHelper.performSearch();
                 return true;
             }
             return false;
         });
 
-        String filePath = getIntent().getStringExtra("file_path");
-        String fileName = getIntent().getStringExtra("file_name");
         Uri fileUri = getIntent().getData();
+        String fileName = getIntent().getStringExtra("file_name");
 
         if (fileName != null) {
             tvTitle.setText(fileName);
@@ -163,9 +118,7 @@ public class MarkdownActivity extends AppCompatActivity {
             tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
         }
 
-        if (filePath != null) {
-            loadMarkdownFile(filePath);
-        } else if (fileUri != null) {
+        if (fileUri != null) {
             loadMarkdownFromUri(fileUri);
         }
     }
@@ -174,136 +127,45 @@ public class MarkdownActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         if (scrollView != null && currentFileUri != null) {
-            int scrollY = scrollView.getScrollY();
-            RecentFilesManager.updateScrollY(this, currentFileUri, scrollY);
+            RecentFilesManager.updateScrollY(this, currentFileUri, scrollView.getScrollY());
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (searchRunnable != null) {
-            searchHandler.removeCallbacks(searchRunnable);
-        }
+        if (searchHelper != null) searchHelper.destroy();
     }
 
-    // ---- Markwon & Theme ----
-
-    private void buildMarkwonInstance(int themeMode) {
-        boolean isDarkMode = isDarkMode();
-        int codeBg = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_code_bg"));
-        int codeBlockBg = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_code_block_bg"));
-        int blockQuoteColor = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_block_quote"));
-        int linkColor;
-        if (themeMode == 0) {
-            linkColor = ContextCompat.getColor(this, isDarkMode ? R.color.theme_classic_link_dark : R.color.theme_classic_link_light);
-        } else {
-            linkColor = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_link"));
-        }
-
-        markwon = Markwon.builder(this)
-                .usePlugin(HtmlPlugin.create())
-                .usePlugin(GlideImagesPlugin.create(this))
-                .usePlugin(MarkwonInlineParserPlugin.create())
-                .usePlugin(JLatexMathPlugin.create(markdownTextView.getTextSize(), builder -> {
-                    builder.inlinesEnabled(true);
-                }))
-                .usePlugin(TablePlugin.create(this))
-                .usePlugin(StrikethroughPlugin.create())
-                .usePlugin(LinkifyPlugin.create())
-                .usePlugin(new AbstractMarkwonPlugin() {
-                    @Override
-                    public void configureTheme(@NonNull MarkwonTheme.Builder builder) {
-                        builder.codeBackgroundColor(codeBg);
-                        builder.codeBlockBackgroundColor(codeBlockBg);
-                        builder.blockQuoteWidth(12);
-                        builder.blockQuoteColor(blockQuoteColor);
-                        builder.linkColor(linkColor);
-                    }
-                })
-                .build();
-    }
-
-    private boolean isDarkMode() {
-        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                == Configuration.UI_MODE_NIGHT_YES;
-    }
-
-    private int getThemeColorRes(int themeMode, String template) {
-        String prefix;
-        switch (themeMode) {
-            case 1: prefix = "theme_sepia"; break;
-            case 2: prefix = "theme_green"; break;
-            case 3: prefix = "theme_space"; break;
-            default: prefix = "theme_classic"; break;
-        }
-        String suffix = template.substring("theme_XXX".length());
-        String resName = prefix + suffix;
-        return getResources().getIdentifier(resName, "color", getPackageName());
-    }
-
-    private int color(int... colorResIds) {
-        for (int id : colorResIds) {
-            if (id != 0) return ContextCompat.getColor(this, id);
-        }
-        return 0;
-    }
+    // ---- Theme ----
 
     private void applyReaderTheme(int themeMode, float lineSpacing) {
-        boolean isDarkMode = isDarkMode();
-
-        int bgColor, cardColor, textColor, toolbarBgColor, hintColor;
-        boolean lightStatusBar;
-
-        switch (themeMode) {
-            case 1: // Sepia
-                bgColor = ContextCompat.getColor(this, R.color.theme_sepia_bg);
-                cardColor = ContextCompat.getColor(this, R.color.theme_sepia_card);
-                textColor = ContextCompat.getColor(this, R.color.theme_sepia_text);
-                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_sepia_toolbar);
-                hintColor = ContextCompat.getColor(this, R.color.theme_sepia_hint);
-                lightStatusBar = true;
-                break;
-            case 2: // Dark Green
-                bgColor = ContextCompat.getColor(this, R.color.theme_green_bg);
-                cardColor = ContextCompat.getColor(this, R.color.theme_green_card);
-                textColor = ContextCompat.getColor(this, R.color.theme_green_text);
-                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_green_toolbar);
-                hintColor = ContextCompat.getColor(this, R.color.theme_green_hint);
-                lightStatusBar = false;
-                break;
-            case 3: // Deep Space
-                bgColor = ContextCompat.getColor(this, R.color.theme_space_bg);
-                cardColor = ContextCompat.getColor(this, R.color.theme_space_card);
-                textColor = ContextCompat.getColor(this, R.color.theme_space_text);
-                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_space_toolbar);
-                hintColor = ContextCompat.getColor(this, R.color.theme_space_hint);
-                lightStatusBar = false;
-                break;
-            default: // Classic (adaptive)
-                bgColor = ContextCompat.getColor(this, R.color.ios_background);
-                cardColor = ContextCompat.getColor(this, R.color.ios_card_bg);
-                textColor = ContextCompat.getColor(this, R.color.ios_text_primary);
-                toolbarBgColor = ContextCompat.getColor(this,
-                        isDarkMode ? R.color.theme_classic_toolbar_dark : R.color.theme_classic_toolbar_light);
-                hintColor = ContextCompat.getColor(this, R.color.ios_text_secondary);
-                lightStatusBar = !isDarkMode;
-                break;
-        }
+        boolean dark = ReaderTheme.isDarkMode(this);
+        int bgColor = ReaderTheme.getBgColor(this, themeMode);
+        int cardColor = ReaderTheme.getCardColor(this, themeMode);
+        int textColor = ReaderTheme.getTextColor(this, themeMode);
+        int toolbarBgColor = ReaderTheme.getToolbarColor(this, themeMode);
+        int hintColor = ReaderTheme.getHintColor(this, themeMode);
 
         applyColorsToViews(bgColor, cardColor, textColor, toolbarBgColor, hintColor);
         markdownTextView.setLineSpacing(0, lineSpacing);
 
-        buildMarkwonInstance(themeMode);
+        markwon = MarkwonFactory.create(this, markdownTextView, themeMode);
         if (rawMarkdownContent != null && !rawMarkdownContent.isEmpty()) {
-            final Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
+            Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
             markwon.setParsedMarkdown(markdownTextView, spanned);
         }
 
-        if (lightStatusBar) {
+        if (ReaderTheme.useLightStatusBar(themeMode) && !dark) {
             SystemBarUtils.applyLightSystemBars(getWindow());
         } else {
             SystemBarUtils.applyDarkSystemBars(getWindow());
+        }
+
+        if (searchHelper != null) {
+            searchHelper.setColors(
+                    ReaderTheme.getHighlightColor(this, themeMode),
+                    ReaderTheme.getCurrentHighlightColor(this, themeMode));
         }
     }
 
@@ -314,7 +176,8 @@ public class MarkdownActivity extends AppCompatActivity {
             ((View) parent).setBackgroundColor(bgColor);
         }
 
-        androidx.cardview.widget.CardView cardView = (androidx.cardview.widget.CardView) markdownTextView.getParent();
+        androidx.cardview.widget.CardView cardView =
+                (androidx.cardview.widget.CardView) markdownTextView.getParent();
         if (cardView != null) {
             cardView.setCardBackgroundColor(cardColor);
         }
@@ -328,30 +191,26 @@ public class MarkdownActivity extends AppCompatActivity {
         }
 
         int iconTint = textColor;
-        android.widget.ImageView btnBack = findViewById(R.id.btn_back);
-        android.widget.ImageView btnToc = findViewById(R.id.btn_toc);
-        android.widget.ImageView btnSearch = findViewById(R.id.btn_search);
-        android.widget.ImageView btnSettings = findViewById(R.id.btn_settings);
-        if (btnBack != null) btnBack.setColorFilter(iconTint);
-        if (btnToc != null) btnToc.setColorFilter(iconTint);
-        if (btnSearch != null) btnSearch.setColorFilter(iconTint);
-        if (btnSettings != null) btnSettings.setColorFilter(iconTint);
+        int[] btnIds = {R.id.btn_back, R.id.btn_toc, R.id.btn_search, R.id.btn_settings};
+        for (int id : btnIds) {
+            android.widget.ImageView btn = findViewById(id);
+            if (btn != null) btn.setColorFilter(iconTint);
+        }
 
         View searchBarView = findViewById(R.id.search_bar);
         if (searchBarView != null) {
             searchBarView.setBackgroundColor(toolbarBgColor);
         }
-        android.widget.EditText etSearchField = findViewById(R.id.et_search);
+        EditText etSearchField = findViewById(R.id.et_search);
         if (etSearchField != null) {
             etSearchField.setTextColor(textColor);
             etSearchField.setHintTextColor(hintColor);
         }
-        android.widget.ImageView btnSearchPrevView = findViewById(R.id.btn_search_prev);
-        android.widget.ImageView btnSearchNextView = findViewById(R.id.btn_search_next);
-        android.widget.ImageView btnSearchCloseView = findViewById(R.id.btn_search_close);
-        if (btnSearchPrevView != null) btnSearchPrevView.setColorFilter(iconTint);
-        if (btnSearchNextView != null) btnSearchNextView.setColorFilter(iconTint);
-        if (btnSearchCloseView != null) btnSearchCloseView.setColorFilter(iconTint);
+        int[] searchBtnIds = {R.id.btn_search_prev, R.id.btn_search_next, R.id.btn_search_close};
+        for (int id : searchBtnIds) {
+            android.widget.ImageView btn = findViewById(id);
+            if (btn != null) btn.setColorFilter(iconTint);
+        }
     }
 
     // ---- Reader Config Dialog ----
@@ -364,7 +223,7 @@ public class MarkdownActivity extends AppCompatActivity {
         View btnIncrease = dialogView.findViewById(R.id.btn_size_increase);
         TextView tvCurrentSize = dialogView.findViewById(R.id.tv_current_size);
 
-        final int[] currentSize = { readerPrefs.getInt("font_size", Constants.FONT_SIZE_DEFAULT) };
+        final int[] currentSize = {readerPrefs.getInt("font_size", Constants.FONT_SIZE_DEFAULT)};
         tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
 
         btnDecrease.setOnClickListener(v -> {
@@ -444,6 +303,7 @@ public class MarkdownActivity extends AppCompatActivity {
             else if (v.getId() == R.id.theme_green) newTheme = 2;
             else newTheme = 3;
             readerPrefs.edit().putInt("theme_mode", newTheme).apply();
+            currentThemeMode = newTheme;
             updateThemeHighlight.run();
             float spacing = readerPrefs.getFloat("line_spacing", Constants.LINE_SPACING_DEFAULT);
             applyReaderTheme(newTheme, spacing);
@@ -460,7 +320,7 @@ public class MarkdownActivity extends AppCompatActivity {
     // ---- TOC ----
 
     private void showTocDialog() {
-        if (tocEntries.isEmpty()) {
+        if (tocEntries == null || tocEntries.isEmpty()) {
             Toast.makeText(this, R.string.toc_empty, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -470,7 +330,7 @@ public class MarkdownActivity extends AppCompatActivity {
         TocAdapter adapter = new TocAdapter();
         listView.setAdapter(adapter);
         listView.setOnItemClickListener((parent, view, position, id) -> {
-            TocEntry entry = tocEntries.get(position);
+            TocParser.TocEntry entry = tocEntries.get(position);
             scrollToLine(entry.lineIndex);
             dialog.dismiss();
         });
@@ -481,7 +341,7 @@ public class MarkdownActivity extends AppCompatActivity {
     private void scrollToLine(int lineIndex) {
         CharSequence text = markdownTextView.getText();
         if (text == null) return;
-        Layout layout = markdownTextView.getLayout();
+        android.text.Layout layout = markdownTextView.getLayout();
         if (layout == null) return;
         int offset = 0;
         int currentLine = 0;
@@ -499,40 +359,6 @@ public class MarkdownActivity extends AppCompatActivity {
         scrollView.smoothScrollTo(0, targetY);
     }
 
-    private void extractToc(String content) {
-        tocEntries.clear();
-        String[] lines = content.split("\n");
-        Pattern headingPattern = Pattern.compile("^(#{1,6})\\s+(.+)$");
-        boolean isInCodeBlock = false;
-        for (int i = 0; i < lines.length; i++) {
-            String trimmedLine = lines[i].trim();
-            if (trimmedLine.startsWith("```")) {
-                isInCodeBlock = !isInCodeBlock;
-                continue;
-            }
-            if (isInCodeBlock) {
-                continue;
-            }
-            Matcher m = headingPattern.matcher(trimmedLine);
-            if (m.find()) {
-                int level = m.group(1).length();
-                String title = m.group(2).trim();
-                tocEntries.add(new TocEntry(title, level, i));
-            }
-        }
-    }
-
-    private static class TocEntry {
-        final String title;
-        final int level;
-        final int lineIndex;
-        TocEntry(String title, int level, int lineIndex) {
-            this.title = title;
-            this.level = level;
-            this.lineIndex = lineIndex;
-        }
-    }
-
     private class TocAdapter extends BaseAdapter {
         @Override public int getCount() { return tocEntries.size(); }
         @Override public Object getItem(int position) { return tocEntries.get(position); }
@@ -540,14 +366,15 @@ public class MarkdownActivity extends AppCompatActivity {
         @Override public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder holder;
             if (convertView == null) {
-                convertView = LayoutInflater.from(MarkdownActivity.this).inflate(R.layout.item_toc, parent, false);
+                convertView = LayoutInflater.from(MarkdownActivity.this)
+                        .inflate(R.layout.item_toc, parent, false);
                 holder = new ViewHolder();
                 holder.tvTitle = convertView.findViewById(R.id.tv_toc_title);
                 convertView.setTag(holder);
             } else {
                 holder = (ViewHolder) convertView.getTag();
             }
-            TocEntry entry = tocEntries.get(position);
+            TocParser.TocEntry entry = tocEntries.get(position);
 
             float scale = getResources().getDisplayMetrics().density;
             int paddingLeftPx = (int) (((entry.level - 1) * 16 + 8) * scale + 0.5f);
@@ -575,7 +402,7 @@ public class MarkdownActivity extends AppCompatActivity {
         class ViewHolder { TextView tvTitle; }
     }
 
-    // ---- Search ----
+    // ---- Search UI ----
 
     private void showSearchBar() {
         searchBar.setVisibility(View.VISIBLE);
@@ -588,179 +415,14 @@ public class MarkdownActivity extends AppCompatActivity {
 
     private void hideSearchBar() {
         searchBar.setVisibility(View.GONE);
-        clearHighlights();
+        searchHelper.clearHighlights();
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
         if (imm != null) {
             imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
         }
     }
 
-    private void performSearch() {
-        String query = etSearch.getText().toString().toLowerCase();
-        if (query.isEmpty()) {
-            clearHighlights();
-            return;
-        }
-
-        CharSequence text = markdownTextView.getText();
-        if (text == null) return;
-        String src = text.toString().toLowerCase();
-
-        searchMatches.clear();
-        currentMatchIndex = -1;
-
-        int index = src.indexOf(query);
-        while (index >= 0) {
-            searchMatches.add(new int[]{index, index + query.length()});
-            index = src.indexOf(query, index + 1);
-        }
-
-        if (searchMatches.isEmpty()) {
-            tvSearchCount.setText("0/0");
-            clearHighlights();
-            return;
-        }
-
-        currentMatchIndex = 0;
-        applyHighlights();
-        updateSearchCount();
-        scrollToMatch(0);
-    }
-
-    private void nextMatch() {
-        if (searchMatches.isEmpty()) {
-            performSearch();
-            return;
-        }
-        currentMatchIndex = (currentMatchIndex + 1) % searchMatches.size();
-        applyHighlights();
-        updateSearchCount();
-        scrollToMatch(currentMatchIndex);
-    }
-
-    private void prevMatch() {
-        if (searchMatches.isEmpty()) {
-            performSearch();
-            return;
-        }
-        currentMatchIndex = (currentMatchIndex - 1 + searchMatches.size()) % searchMatches.size();
-        applyHighlights();
-        updateSearchCount();
-        scrollToMatch(currentMatchIndex);
-    }
-
-    private void updateSearchCount() {
-        if (searchMatches.isEmpty()) {
-            tvSearchCount.setText("0/0");
-        } else {
-            tvSearchCount.setText((currentMatchIndex + 1) + "/" + searchMatches.size());
-        }
-    }
-
-    private void applyHighlights() {
-        CharSequence text = markdownTextView.getText();
-        if (text == null || !(text instanceof Spannable)) return;
-        Spannable spannable = (Spannable) text;
-
-        BackgroundColorSpan[] spans = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
-        for (BackgroundColorSpan span : spans) {
-            spannable.removeSpan(span);
-        }
-
-        for (int i = 0; i < searchMatches.size(); i++) {
-            int[] match = searchMatches.get(i);
-            int color = (i == currentMatchIndex) ? CURRENT_HIGHLIGHT_COLOR : HIGHLIGHT_COLOR;
-            spannable.setSpan(new BackgroundColorSpan(color), match[0], match[1], Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-        }
-    }
-
-    private void clearHighlights() {
-        CharSequence text = markdownTextView.getText();
-        if (text == null || !(text instanceof Spannable)) return;
-        Spannable spannable = (Spannable) text;
-        BackgroundColorSpan[] spans = spannable.getSpans(0, spannable.length(), BackgroundColorSpan.class);
-        for (BackgroundColorSpan span : spans) {
-            spannable.removeSpan(span);
-        }
-        searchMatches.clear();
-        currentMatchIndex = -1;
-        tvSearchCount.setText("");
-    }
-
-    private void scrollToMatch(int matchIndex) {
-        if (matchIndex < 0 || matchIndex >= searchMatches.size()) return;
-        int[] match = searchMatches.get(matchIndex);
-        int lineStart = match[0];
-        CharSequence text = markdownTextView.getText();
-        while (lineStart > 0 && text.charAt(lineStart - 1) != '\n') {
-            lineStart--;
-        }
-
-        Layout layout = markdownTextView.getLayout();
-        if (layout != null) {
-            int line = layout.getLineForOffset(match[0]);
-            int y = layout.getLineTop(line);
-
-            int scrollViewHeight = scrollView.getHeight();
-            int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
-            if (targetY < 0) targetY = 0;
-
-            scrollView.smoothScrollTo(0, targetY);
-        }
-    }
-
     // ---- File Loading ----
-
-    private void loadMarkdownFile(String filePath) {
-        File file;
-        try {
-            file = new File(filePath).getCanonicalFile();
-        } catch (IOException e) {
-            Toast.makeText(this, R.string.error_invalid_path, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (!file.exists()) {
-            Toast.makeText(this, R.string.error_file_not_found, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (file.length() > Constants.MAX_FILE_SIZE) {
-            Toast.makeText(this, R.string.error_file_too_large, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        currentFileUri = Uri.fromFile(file);
-        savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
-
-        showLoadingState();
-
-        AppExecutor.getInstance().diskIO().execute(() -> {
-            StringBuilder content = new StringBuilder();
-            boolean readSuccess = true;
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Failed to read file: " + filePath, e);
-                readSuccess = false;
-            }
-
-            if (!readSuccess) {
-                showLoadingError();
-                return;
-            }
-
-            final String markdown = content.toString();
-            extractToc(markdown);
-            final Spanned spanned = markwon.toMarkdown(markdown);
-
-            AppExecutor.getInstance().mainThread().post(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                renderContent(markdown, spanned, currentFileUri);
-            });
-        });
-    }
 
     private void loadMarkdownFromUri(Uri uri) {
         if (uri == null) return;
@@ -803,7 +465,8 @@ public class MarkdownActivity extends AppCompatActivity {
             boolean success = false;
             try (InputStream is = getContentResolver().openInputStream(uri)) {
                 if (is != null) {
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(is, StandardCharsets.UTF_8))) {
                         String line;
                         while ((line = reader.readLine()) != null) {
                             content.append(line).append("\n");
@@ -813,7 +476,6 @@ public class MarkdownActivity extends AppCompatActivity {
                 }
             } catch (IOException e) {
                 Log.e(TAG, "Failed to read URI: " + uri, e);
-                success = false;
             }
 
             if (!success) {
@@ -822,12 +484,14 @@ public class MarkdownActivity extends AppCompatActivity {
             }
 
             final String markdown = content.toString();
-            extractToc(markdown);
-            final Spanned spanned = markwon.toMarkdown(markdown);
+            final List<TocParser.TocEntry> toc = TocParser.parse(markdown);
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                renderContent(markdown, spanned, uri);
+                tocEntries = toc;
+                rawMarkdownContent = markdown;
+                Spanned spanned = markwon.toMarkdown(markdown);
+                renderContent(spanned, uri);
             });
         });
     }
@@ -848,8 +512,7 @@ public class MarkdownActivity extends AppCompatActivity {
         });
     }
 
-    private void renderContent(String markdown, Spanned spanned, Uri uri) {
-        rawMarkdownContent = markdown;
+    private void renderContent(Spanned spanned, Uri uri) {
         markwon.setParsedMarkdown(markdownTextView, spanned);
         RecentFilesManager.addRecentFile(this, uri);
 

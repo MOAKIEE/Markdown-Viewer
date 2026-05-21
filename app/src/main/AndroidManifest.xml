@@ -37,7 +37,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content" android:mimeType="text/plain" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.md" android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.markdown" android:mimeType="text/plain" />
             </intent-filter>
         </activity>
         <activity

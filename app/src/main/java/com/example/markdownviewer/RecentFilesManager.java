@@ -22,6 +22,9 @@ public class RecentFilesManager {
     private static final String JSON_KEY_NAME = "name";
     private static final String JSON_KEY_SCROLL_Y = "scroll_y";
 
+    private static volatile List<RecentEntry> sCache;
+    private static volatile boolean sCacheDirty;
+
     public static void addRecentFile(Context context, Uri uri) {
         if (uri == null) return;
         String uriString = uri.toString();
@@ -81,6 +84,8 @@ public class RecentFilesManager {
     }
 
     public static void clear(Context context) {
+        sCache = null;
+        sCacheDirty = false;
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().remove(KEY_RECENT).apply();
     }
@@ -93,10 +98,17 @@ public class RecentFilesManager {
     }
 
     private static List<RecentEntry> loadList(Context context) {
+        if (sCache != null && !sCacheDirty) {
+            return new ArrayList<>(sCache);
+        }
         List<RecentEntry> result = new ArrayList<>();
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String raw = prefs.getString(KEY_RECENT, "");
-        if (TextUtils.isEmpty(raw)) return result;
+        if (TextUtils.isEmpty(raw)) {
+            sCache = result;
+            sCacheDirty = false;
+            return new ArrayList<>(result);
+        }
         try {
             JSONArray arr = new JSONArray(raw);
             for (int i = 0; i < arr.length(); i++) {
@@ -107,7 +119,9 @@ public class RecentFilesManager {
         } catch (JSONException e) {
             Log.w(TAG, "Failed to parse recent files JSON", e);
         }
-        return result;
+        sCache = result;
+        sCacheDirty = false;
+        return new ArrayList<>(result);
     }
 
     private static void saveList(Context context, List<RecentEntry> list) {
@@ -123,6 +137,8 @@ public class RecentFilesManager {
             }
             arr.put(obj);
         }
+        sCache = new ArrayList<>(list);
+        sCacheDirty = false;
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putString(KEY_RECENT, arr.toString()).apply();
     }

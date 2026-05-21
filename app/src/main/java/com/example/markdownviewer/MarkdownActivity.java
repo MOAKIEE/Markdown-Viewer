@@ -3,7 +3,8 @@ package com.example.markdownviewer;
 import android.app.AlertDialog;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import android.content.Intent;
-import android.content.res.Configuration; // 💡 引入用于识别夜间模式
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,8 +14,10 @@ import android.text.Layout;
 import android.text.Spannable;
 import android.text.TextWatcher;
 import android.text.style.BackgroundColorSpan;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewParent;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -34,6 +37,7 @@ import io.noties.markwon.core.MarkwonTheme;
 import androidx.annotation.NonNull;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -48,15 +52,16 @@ import java.util.regex.Pattern;
 
 import io.noties.markwon.Markwon;
 import io.noties.markwon.html.HtmlPlugin;
-import io.noties.markwon.image.glide.GlideImagesPlugin; // 💡 替换为 Glide 异步图层缓存加载器
-import io.noties.markwon.ext.latex.JLatexMathPlugin; // 💡 引入 JLatexMath 渲染引擎
-import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin; // 💡 引入行内语法解析插件支持 LaTeX
+import io.noties.markwon.image.glide.GlideImagesPlugin;
+import io.noties.markwon.ext.latex.JLatexMathPlugin;
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
 import io.noties.markwon.ext.tables.TablePlugin;
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin;
 import io.noties.markwon.linkify.LinkifyPlugin;
 
 public class MarkdownActivity extends AppCompatActivity {
 
+    private static final String TAG = "MarkdownActivity";
     private static final int HIGHLIGHT_COLOR = 0xFFFFFF00;
     private static final int CURRENT_HIGHLIGHT_COLOR = 0xFFFFA500;
 
@@ -78,14 +83,13 @@ public class MarkdownActivity extends AppCompatActivity {
     private List<TocEntry> tocEntries = new ArrayList<>();
     private ProgressBar progressLoading;
 
-    // 💡 引入搜索防抖 Handler 与延时 Runnable
     private final Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable = null;
 
-    // 💡 记录当前的滚动历史及 Uri
     private int savedScrollY = 0;
     private Uri currentFileUri = null;
 
+    private SharedPreferences readerPrefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,17 +98,18 @@ public class MarkdownActivity extends AppCompatActivity {
 
         SystemBarUtils.applyLightSystemBars(getWindow());
 
+        readerPrefs = getSharedPreferences(Constants.PREFS_READER_CONFIG, MODE_PRIVATE);
+
         tvTitle = findViewById(R.id.tv_title);
         markdownTextView = findViewById(R.id.markdown_text);
         scrollView = findViewById(R.id.scroll_view);
         progressLoading = findViewById(R.id.progress_loading);
 
-        int savedFontSize = getSharedPreferences("reader_config", MODE_PRIVATE).getInt("font_size", 16);
+        int savedFontSize = readerPrefs.getInt("font_size", Constants.FONT_SIZE_DEFAULT);
         markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedFontSize);
 
-        // 💡 加载并应用阅读器主题与行距配置
-        int savedThemeMode = getSharedPreferences("reader_config", MODE_PRIVATE).getInt("theme_mode", 0);
-        float savedLineSpacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
+        int savedThemeMode = readerPrefs.getInt("theme_mode", 0);
+        float savedLineSpacing = readerPrefs.getFloat("line_spacing", Constants.LINE_SPACING_DEFAULT);
         applyReaderTheme(savedThemeMode, savedLineSpacing);
 
         findViewById(R.id.btn_back).setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
@@ -125,7 +130,6 @@ public class MarkdownActivity extends AppCompatActivity {
         btnSearchNext.setOnClickListener(v -> nextMatch());
         btnSearchPrev.setOnClickListener(v -> prevMatch());
 
-        // 💡 搜索输入框绑定 300ms 防抖
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
@@ -134,11 +138,10 @@ public class MarkdownActivity extends AppCompatActivity {
                     searchHandler.removeCallbacks(searchRunnable);
                 }
                 searchRunnable = () -> performSearch();
-                searchHandler.postDelayed(searchRunnable, 300);
+                searchHandler.postDelayed(searchRunnable, Constants.SEARCH_DEBOUNCE_MS);
             }
         });
 
-        // 💡 点击软键盘确认立即执行搜索
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 if (searchRunnable != null) {
@@ -170,7 +173,6 @@ public class MarkdownActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // 💡 退出或切后台时，即时自动捕获当前 ScrollY 高度持久化存盘，实现无感恢复
         if (scrollView != null && currentFileUri != null) {
             int scrollY = scrollView.getScrollY();
             RecentFilesManager.updateScrollY(this, currentFileUri, scrollY);
@@ -185,34 +187,18 @@ public class MarkdownActivity extends AppCompatActivity {
         }
     }
 
-    private void buildMarkwonInstance(int themeMode) {
-        boolean isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        
-        int codeBg;
-        int codeBlockBg;
-        int blockQuoteColor;
-        int linkColor;
+    // ---- Markwon & Theme ----
 
-        if (themeMode == 0) { // 经典自适应
-            codeBg = 0x1A808080;
-            codeBlockBg = 0x10808080;
-            blockQuoteColor = 0x30808080;
-            linkColor = isDarkMode ? 0xFF64B5F6 : 0xFF1E88E5;
-        } else if (themeMode == 1) { // 书香雅卷
-            codeBg = 0x189E6F33;
-            codeBlockBg = 0x109E6F33;
-            blockQuoteColor = 0x30B37D14;
-            linkColor = 0xFFB37D14;
-        } else if (themeMode == 2) { // 暗玉幽绿
-            codeBg = 0x1E808080;
-            codeBlockBg = 0x14808080;
-            blockQuoteColor = 0x305AB88A;
-            linkColor = 0xFF5AB88A;
-        } else { // 深邃太空
-            codeBg = 0x24808080;
-            codeBlockBg = 0x1A808080;
-            blockQuoteColor = 0x304988ED;
-            linkColor = 0xFF4988ED;
+    private void buildMarkwonInstance(int themeMode) {
+        boolean isDarkMode = isDarkMode();
+        int codeBg = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_code_bg"));
+        int codeBlockBg = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_code_block_bg"));
+        int blockQuoteColor = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_block_quote"));
+        int linkColor;
+        if (themeMode == 0) {
+            linkColor = ContextCompat.getColor(this, isDarkMode ? R.color.theme_classic_link_dark : R.color.theme_classic_link_light);
+        } else {
+            linkColor = ContextCompat.getColor(this, getThemeColorRes(themeMode, "theme_XXX_link"));
         }
 
         markwon = Markwon.builder(this)
@@ -238,43 +224,92 @@ public class MarkdownActivity extends AppCompatActivity {
                 .build();
     }
 
+    private boolean isDarkMode() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int getThemeColorRes(int themeMode, String template) {
+        String prefix;
+        switch (themeMode) {
+            case 1: prefix = "theme_sepia"; break;
+            case 2: prefix = "theme_green"; break;
+            case 3: prefix = "theme_space"; break;
+            default: prefix = "theme_classic"; break;
+        }
+        String suffix = template.substring("theme_XXX".length());
+        String resName = prefix + suffix;
+        return getResources().getIdentifier(resName, "color", getPackageName());
+    }
+
+    private int color(int... colorResIds) {
+        for (int id : colorResIds) {
+            if (id != 0) return ContextCompat.getColor(this, id);
+        }
+        return 0;
+    }
+
     private void applyReaderTheme(int themeMode, float lineSpacing) {
-        boolean isDarkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        
-        int bgColor;
-        int cardColor;
-        int textColor;
-        int toolbarBgColor;
+        boolean isDarkMode = isDarkMode();
+
+        int bgColor, cardColor, textColor, toolbarBgColor, hintColor;
         boolean lightStatusBar;
 
-        if (themeMode == 0) { // 经典自适应
-            bgColor = getResources().getColor(R.color.ios_background);
-            cardColor = getResources().getColor(R.color.ios_card_bg);
-            textColor = getResources().getColor(R.color.ios_text_primary);
-            toolbarBgColor = isDarkMode ? 0x991C1C1E : 0x99FFFFFF;
-            lightStatusBar = !isDarkMode;
-        } else if (themeMode == 1) { // 书香雅卷
-            bgColor = 0xFFF4F1EA;
-            cardColor = 0xFFFAF7F2;
-            textColor = 0xFF3E3A33;
-            toolbarBgColor = 0xDDFAF7F2;
-            lightStatusBar = true;
-        } else if (themeMode == 2) { // 暗玉幽绿
-            bgColor = 0xFF121E18;
-            cardColor = 0xFF192A21;
-            textColor = 0xFFDFEDE5;
-            toolbarBgColor = 0xDD192A21;
-            lightStatusBar = false;
-        } else { // 深邃太空
-            bgColor = 0xFF0B0F19;
-            cardColor = 0xFF121829;
-            textColor = 0xFFD8E2F8;
-            toolbarBgColor = 0xDD121829;
-            lightStatusBar = false;
+        switch (themeMode) {
+            case 1: // Sepia
+                bgColor = ContextCompat.getColor(this, R.color.theme_sepia_bg);
+                cardColor = ContextCompat.getColor(this, R.color.theme_sepia_card);
+                textColor = ContextCompat.getColor(this, R.color.theme_sepia_text);
+                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_sepia_toolbar);
+                hintColor = ContextCompat.getColor(this, R.color.theme_sepia_hint);
+                lightStatusBar = true;
+                break;
+            case 2: // Dark Green
+                bgColor = ContextCompat.getColor(this, R.color.theme_green_bg);
+                cardColor = ContextCompat.getColor(this, R.color.theme_green_card);
+                textColor = ContextCompat.getColor(this, R.color.theme_green_text);
+                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_green_toolbar);
+                hintColor = ContextCompat.getColor(this, R.color.theme_green_hint);
+                lightStatusBar = false;
+                break;
+            case 3: // Deep Space
+                bgColor = ContextCompat.getColor(this, R.color.theme_space_bg);
+                cardColor = ContextCompat.getColor(this, R.color.theme_space_card);
+                textColor = ContextCompat.getColor(this, R.color.theme_space_text);
+                toolbarBgColor = ContextCompat.getColor(this, R.color.theme_space_toolbar);
+                hintColor = ContextCompat.getColor(this, R.color.theme_space_hint);
+                lightStatusBar = false;
+                break;
+            default: // Classic (adaptive)
+                bgColor = ContextCompat.getColor(this, R.color.ios_background);
+                cardColor = ContextCompat.getColor(this, R.color.ios_card_bg);
+                textColor = ContextCompat.getColor(this, R.color.ios_text_primary);
+                toolbarBgColor = ContextCompat.getColor(this,
+                        isDarkMode ? R.color.theme_classic_toolbar_dark : R.color.theme_classic_toolbar_light);
+                hintColor = ContextCompat.getColor(this, R.color.ios_text_secondary);
+                lightStatusBar = !isDarkMode;
+                break;
         }
 
+        applyColorsToViews(bgColor, cardColor, textColor, toolbarBgColor, hintColor);
+        markdownTextView.setLineSpacing(0, lineSpacing);
+
+        buildMarkwonInstance(themeMode);
+        if (rawMarkdownContent != null && !rawMarkdownContent.isEmpty()) {
+            final Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
+            markwon.setParsedMarkdown(markdownTextView, spanned);
+        }
+
+        if (lightStatusBar) {
+            SystemBarUtils.applyLightSystemBars(getWindow());
+        } else {
+            SystemBarUtils.applyDarkSystemBars(getWindow());
+        }
+    }
+
+    private void applyColorsToViews(int bgColor, int cardColor, int textColor, int toolbarBgColor, int hintColor) {
         scrollView.setBackgroundColor(bgColor);
-        android.view.ViewParent parent = scrollView.getParent();
+        ViewParent parent = scrollView.getParent();
         if (parent instanceof View) {
             ((View) parent).setBackgroundColor(bgColor);
         }
@@ -285,21 +320,18 @@ public class MarkdownActivity extends AppCompatActivity {
         }
 
         markdownTextView.setTextColor(textColor);
-        markdownTextView.setLineSpacing(0, lineSpacing);
+        tvTitle.setTextColor(textColor);
 
         View toolbarContainer = findViewById(R.id.toolbar_container);
         if (toolbarContainer != null) {
             toolbarContainer.setBackgroundColor(toolbarBgColor);
         }
-        
+
         int iconTint = textColor;
-        tvTitle.setTextColor(textColor);
-        
         android.widget.ImageView btnBack = findViewById(R.id.btn_back);
         android.widget.ImageView btnToc = findViewById(R.id.btn_toc);
         android.widget.ImageView btnSearch = findViewById(R.id.btn_search);
         android.widget.ImageView btnSettings = findViewById(R.id.btn_settings);
-        
         if (btnBack != null) btnBack.setColorFilter(iconTint);
         if (btnToc != null) btnToc.setColorFilter(iconTint);
         if (btnSearch != null) btnSearch.setColorFilter(iconTint);
@@ -312,7 +344,7 @@ public class MarkdownActivity extends AppCompatActivity {
         android.widget.EditText etSearchField = findViewById(R.id.et_search);
         if (etSearchField != null) {
             etSearchField.setTextColor(textColor);
-            etSearchField.setHintTextColor(themeMode == 0 ? getResources().getColor(R.color.ios_text_secondary) : (themeMode == 1 ? 0x883E3A33 : 0x88DFEDE5));
+            etSearchField.setHintTextColor(hintColor);
         }
         android.widget.ImageView btnSearchPrevView = findViewById(R.id.btn_search_prev);
         android.widget.ImageView btnSearchNextView = findViewById(R.id.btn_search_next);
@@ -320,99 +352,84 @@ public class MarkdownActivity extends AppCompatActivity {
         if (btnSearchPrevView != null) btnSearchPrevView.setColorFilter(iconTint);
         if (btnSearchNextView != null) btnSearchNextView.setColorFilter(iconTint);
         if (btnSearchCloseView != null) btnSearchCloseView.setColorFilter(iconTint);
-
-        buildMarkwonInstance(themeMode);
-        if (rawMarkdownContent != null && !rawMarkdownContent.isEmpty()) {
-            final Spanned spanned = markwon.toMarkdown(rawMarkdownContent);
-            markwon.setParsedMarkdown(markdownTextView, spanned);
-        }
-
-        if (lightStatusBar) {
-            SystemBarUtils.applyLightSystemBars(getWindow());
-        } else {
-            View decorView = getWindow().getDecorView();
-            int flags = decorView.getSystemUiVisibility();
-            flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            decorView.setSystemUiVisibility(flags);
-        }
     }
+
+    // ---- Reader Config Dialog ----
 
     private void showReaderConfigDialog() {
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_reader_config, null);
-        
+
         View btnDecrease = dialogView.findViewById(R.id.btn_size_decrease);
         View btnIncrease = dialogView.findViewById(R.id.btn_size_increase);
         TextView tvCurrentSize = dialogView.findViewById(R.id.tv_current_size);
-        
-        // 💡 闭包里读取和更新状态，并做 SharedPreferences 持久化与 TextView 字号的动态缩放
-        final int[] currentSize = { getSharedPreferences("reader_config", MODE_PRIVATE).getInt("font_size", 16) };
-        tvCurrentSize.setText(currentSize[0] + " sp");
-        
+
+        final int[] currentSize = { readerPrefs.getInt("font_size", Constants.FONT_SIZE_DEFAULT) };
+        tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
+
         btnDecrease.setOnClickListener(v -> {
-            if (currentSize[0] > 12) {
+            if (currentSize[0] > Constants.FONT_SIZE_MIN) {
                 currentSize[0]--;
-                tvCurrentSize.setText(currentSize[0] + " sp");
+                tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
                 markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
-                getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("font_size", currentSize[0]).apply();
+                readerPrefs.edit().putInt("font_size", currentSize[0]).apply();
             } else {
-                Toast.makeText(this, "字号已达最小限制", Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        btnIncrease.setOnClickListener(v -> {
-            if (currentSize[0] < 32) {
-                currentSize[0]++;
-                tvCurrentSize.setText(currentSize[0] + " sp");
-                markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
-                getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("font_size", currentSize[0]).apply();
-            } else {
-                Toast.makeText(this, "字号已达最大限制", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.error_font_size_min, Toast.LENGTH_SHORT).show();
             }
         });
 
-        // 💡 绑定行距按钮
+        btnIncrease.setOnClickListener(v -> {
+            if (currentSize[0] < Constants.FONT_SIZE_MAX) {
+                currentSize[0]++;
+                tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
+                markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
+                readerPrefs.edit().putInt("font_size", currentSize[0]).apply();
+            } else {
+                Toast.makeText(this, R.string.error_font_size_max, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Line spacing
         View btnSpacing12 = dialogView.findViewById(R.id.btn_spacing_12);
         View btnSpacing14 = dialogView.findViewById(R.id.btn_spacing_14);
         View btnSpacing16 = dialogView.findViewById(R.id.btn_spacing_16);
 
         Runnable updateSpacingHighlight = () -> {
-            float spacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
-            btnSpacing12.setBackgroundColor(Math.abs(spacing - 1.2f) < 0.05f ? 0x40808080 : 0x15808080);
-            btnSpacing14.setBackgroundColor(Math.abs(spacing - 1.4f) < 0.05f ? 0x40808080 : 0x15808080);
-            btnSpacing16.setBackgroundColor(Math.abs(spacing - 1.6f) < 0.05f ? 0x40808080 : 0x15808080);
+            float spacing = readerPrefs.getFloat("line_spacing", Constants.LINE_SPACING_DEFAULT);
+            int activeColor = ContextCompat.getColor(this, R.color.spacing_highlight_active);
+            int inactiveColor = ContextCompat.getColor(this, R.color.spacing_highlight_inactive);
+            btnSpacing12.setBackgroundColor(Math.abs(spacing - 1.2f) < 0.05f ? activeColor : inactiveColor);
+            btnSpacing14.setBackgroundColor(Math.abs(spacing - 1.4f) < 0.05f ? activeColor : inactiveColor);
+            btnSpacing16.setBackgroundColor(Math.abs(spacing - 1.6f) < 0.05f ? activeColor : inactiveColor);
         };
         updateSpacingHighlight.run();
 
-        btnSpacing12.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putFloat("line_spacing", 1.2f).apply();
+        View.OnClickListener spacingListener = v -> {
+            float newSpacing;
+            if (v.getId() == R.id.btn_spacing_12) newSpacing = 1.2f;
+            else if (v.getId() == R.id.btn_spacing_14) newSpacing = 1.4f;
+            else newSpacing = 1.6f;
+            readerPrefs.edit().putFloat("line_spacing", newSpacing).apply();
             updateSpacingHighlight.run();
-            applyReaderTheme(getSharedPreferences("reader_config", MODE_PRIVATE).getInt("theme_mode", 0), 1.2f);
-        });
-        btnSpacing14.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putFloat("line_spacing", 1.4f).apply();
-            updateSpacingHighlight.run();
-            applyReaderTheme(getSharedPreferences("reader_config", MODE_PRIVATE).getInt("theme_mode", 0), 1.4f);
-        });
-        btnSpacing16.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putFloat("line_spacing", 1.6f).apply();
-            updateSpacingHighlight.run();
-            applyReaderTheme(getSharedPreferences("reader_config", MODE_PRIVATE).getInt("theme_mode", 0), 1.6f);
-        });
+            applyReaderTheme(readerPrefs.getInt("theme_mode", 0), newSpacing);
+        };
+        btnSpacing12.setOnClickListener(spacingListener);
+        btnSpacing14.setOnClickListener(spacingListener);
+        btnSpacing16.setOnClickListener(spacingListener);
 
-        // 💡 绑定主题按钮
+        // Theme
         androidx.cardview.widget.CardView btnClassic = dialogView.findViewById(R.id.theme_classic);
         androidx.cardview.widget.CardView btnSepia = dialogView.findViewById(R.id.theme_sepia);
         androidx.cardview.widget.CardView btnGreen = dialogView.findViewById(R.id.theme_green);
         androidx.cardview.widget.CardView btnSpace = dialogView.findViewById(R.id.theme_space);
 
         Runnable updateThemeHighlight = () -> {
-            int theme = getSharedPreferences("reader_config", MODE_PRIVATE).getInt("theme_mode", 0);
+            int theme = readerPrefs.getInt("theme_mode", 0);
             btnClassic.setCardElevation(theme == 0 ? 12f : 0f);
             btnSepia.setCardElevation(theme == 1 ? 12f : 0f);
             btnGreen.setCardElevation(theme == 2 ? 12f : 0f);
             btnSpace.setCardElevation(theme == 3 ? 12f : 0f);
-            
+
             btnClassic.setForeground(theme == 0 ? getDrawable(R.drawable.glass_card_stroke) : null);
             btnSepia.setForeground(theme == 1 ? getDrawable(R.drawable.glass_card_stroke) : null);
             btnGreen.setForeground(theme == 2 ? getDrawable(R.drawable.glass_card_stroke) : null);
@@ -420,34 +437,27 @@ public class MarkdownActivity extends AppCompatActivity {
         };
         updateThemeHighlight.run();
 
-        btnClassic.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("theme_mode", 0).apply();
+        View.OnClickListener themeListener = v -> {
+            int newTheme;
+            if (v.getId() == R.id.theme_classic) newTheme = 0;
+            else if (v.getId() == R.id.theme_sepia) newTheme = 1;
+            else if (v.getId() == R.id.theme_green) newTheme = 2;
+            else newTheme = 3;
+            readerPrefs.edit().putInt("theme_mode", newTheme).apply();
             updateThemeHighlight.run();
-            float spacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
-            applyReaderTheme(0, spacing);
-        });
-        btnSepia.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("theme_mode", 1).apply();
-            updateThemeHighlight.run();
-            float spacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
-            applyReaderTheme(1, spacing);
-        });
-        btnGreen.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("theme_mode", 2).apply();
-            updateThemeHighlight.run();
-            float spacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
-            applyReaderTheme(2, spacing);
-        });
-        btnSpace.setOnClickListener(v -> {
-            getSharedPreferences("reader_config", MODE_PRIVATE).edit().putInt("theme_mode", 3).apply();
-            updateThemeHighlight.run();
-            float spacing = getSharedPreferences("reader_config", MODE_PRIVATE).getFloat("line_spacing", 1.3f);
-            applyReaderTheme(3, spacing);
-        });
-        
+            float spacing = readerPrefs.getFloat("line_spacing", Constants.LINE_SPACING_DEFAULT);
+            applyReaderTheme(newTheme, spacing);
+        };
+        btnClassic.setOnClickListener(themeListener);
+        btnSepia.setOnClickListener(themeListener);
+        btnGreen.setOnClickListener(themeListener);
+        btnSpace.setOnClickListener(themeListener);
+
         dialog.setContentView(dialogView);
         dialog.show();
     }
+
+    // ---- TOC ----
 
     private void showTocDialog() {
         if (tocEntries.isEmpty()) {
@@ -481,12 +491,11 @@ public class MarkdownActivity extends AppCompatActivity {
         }
         int line = layout.getLineForOffset(offset);
         int y = layout.getLineTop(line);
-        
-        // Calculate vertical offset to center the line at 1/3 viewport height
+
         int scrollViewHeight = scrollView.getHeight();
         int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
         if (targetY < 0) targetY = 0;
-        
+
         scrollView.smoothScrollTo(0, targetY);
     }
 
@@ -539,35 +548,34 @@ public class MarkdownActivity extends AppCompatActivity {
                 holder = (ViewHolder) convertView.getTag();
             }
             TocEntry entry = tocEntries.get(position);
-            
-            // Calculate dynamic indentation left padding: 16dp per level
-            int paddingLeftDp = (entry.level - 1) * 16;
+
             float scale = getResources().getDisplayMetrics().density;
-            int paddingLeftPx = (int) (paddingLeftDp * scale + 0.5f);
+            int paddingLeftPx = (int) (((entry.level - 1) * 16 + 8) * scale + 0.5f);
             int paddingTopBottomPx = (int) (12 * scale + 0.5f);
             int paddingRightPx = (int) (8 * scale + 0.5f);
-            convertView.setPadding(paddingLeftPx + (int)(8 * scale), paddingTopBottomPx, paddingRightPx, paddingTopBottomPx);
+            convertView.setPadding(paddingLeftPx, paddingTopBottomPx, paddingRightPx, paddingTopBottomPx);
 
-            // Dynamically set typography based on header level
             if (entry.level == 1) {
                 holder.tvTitle.setTextSize(16.5f);
                 holder.tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-                holder.tvTitle.setTextColor(getResources().getColor(R.color.ios_text_primary));
+                holder.tvTitle.setTextColor(ContextCompat.getColor(MarkdownActivity.this, R.color.ios_text_primary));
             } else if (entry.level == 2) {
                 holder.tvTitle.setTextSize(14.5f);
                 holder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
-                holder.tvTitle.setTextColor(getResources().getColor(R.color.ios_text_primary));
+                holder.tvTitle.setTextColor(ContextCompat.getColor(MarkdownActivity.this, R.color.ios_text_primary));
             } else {
                 holder.tvTitle.setTextSize(13.0f);
                 holder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
-                holder.tvTitle.setTextColor(getResources().getColor(R.color.ios_text_secondary));
+                holder.tvTitle.setTextColor(ContextCompat.getColor(MarkdownActivity.this, R.color.ios_text_secondary));
             }
-            
+
             holder.tvTitle.setText(entry.title);
             return convertView;
         }
         class ViewHolder { TextView tvTitle; }
     }
+
+    // ---- Search ----
 
     private void showSearchBar() {
         searchBar.setVisibility(View.VISIBLE);
@@ -692,15 +700,16 @@ public class MarkdownActivity extends AppCompatActivity {
         if (layout != null) {
             int line = layout.getLineForOffset(match[0]);
             int y = layout.getLineTop(line);
-            
-            // Calculate vertical offset to center the match at 1/3 viewport height
+
             int scrollViewHeight = scrollView.getHeight();
             int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
             if (targetY < 0) targetY = 0;
-            
+
             scrollView.smoothScrollTo(0, targetY);
         }
     }
+
+    // ---- File Loading ----
 
     private void loadMarkdownFile(String filePath) {
         File file;
@@ -719,13 +728,10 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
-        // 💡 记录当前文件 Uri 并读取历史滚动高度
         currentFileUri = Uri.fromFile(file);
         savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
 
-        progressLoading.setAlpha(1f);
-        progressLoading.setVisibility(View.VISIBLE);
-        scrollView.setVisibility(View.GONE);
+        showLoadingState();
 
         AppExecutor.getInstance().diskIO().execute(() -> {
             StringBuilder content = new StringBuilder();
@@ -736,17 +742,12 @@ public class MarkdownActivity extends AppCompatActivity {
                     content.append(line).append("\n");
                 }
             } catch (IOException e) {
+                Log.e(TAG, "Failed to read file: " + filePath, e);
                 readSuccess = false;
             }
 
             if (!readSuccess) {
-                AppExecutor.getInstance().mainThread().post(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    progressLoading.setVisibility(View.GONE);
-                    scrollView.setAlpha(1f);
-                    scrollView.setVisibility(View.VISIBLE);
-                    Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
-                });
+                showLoadingError();
                 return;
             }
 
@@ -756,23 +757,7 @@ public class MarkdownActivity extends AppCompatActivity {
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                rawMarkdownContent = markdown;
-                markwon.setParsedMarkdown(markdownTextView, spanned);
-                RecentFilesManager.addRecentFile(this, currentFileUri);
-                
-                // 💡 优雅平滑的渐隐淡出与渐现动效
-                progressLoading.animate().alpha(0f).setDuration(200).withEndAction(() -> {
-                    progressLoading.setVisibility(View.GONE);
-                    progressLoading.setAlpha(1f);
-                });
-                scrollView.setAlpha(0f);
-                scrollView.setVisibility(View.VISIBLE);
-                scrollView.animate().alpha(1f).setDuration(250).setListener(null);
-
-                // 💡 异步恢复滚动高度
-                if (savedScrollY > 0) {
-                    scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
-                }
+                renderContent(markdown, spanned, currentFileUri);
             });
         });
     }
@@ -785,13 +770,10 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
-        // 💡 记录当前文件 Uri 并读取历史滚动高度
         currentFileUri = uri;
         savedScrollY = RecentFilesManager.getScrollY(this, currentFileUri);
 
-        progressLoading.setAlpha(1f);
-        progressLoading.setVisibility(View.VISIBLE);
-        scrollView.setVisibility(View.GONE);
+        showLoadingState();
 
         AppExecutor.getInstance().diskIO().execute(() -> {
             long fileSize = 0;
@@ -802,7 +784,9 @@ public class MarkdownActivity extends AppCompatActivity {
                         fileSize = cursor.getLong(sizeIdx);
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to query file size for URI: " + uri, e);
+            }
 
             if (fileSize > Constants.MAX_FILE_SIZE) {
                 AppExecutor.getInstance().mainThread().post(() -> {
@@ -828,17 +812,12 @@ public class MarkdownActivity extends AppCompatActivity {
                     }
                 }
             } catch (IOException e) {
+                Log.e(TAG, "Failed to read URI: " + uri, e);
                 success = false;
             }
 
             if (!success) {
-                AppExecutor.getInstance().mainThread().post(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    progressLoading.setVisibility(View.GONE);
-                    scrollView.setAlpha(1f);
-                    scrollView.setVisibility(View.VISIBLE);
-                    Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
-                });
+                showLoadingError();
                 return;
             }
 
@@ -848,24 +827,42 @@ public class MarkdownActivity extends AppCompatActivity {
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                rawMarkdownContent = markdown;
-                markwon.setParsedMarkdown(markdownTextView, spanned);
-                RecentFilesManager.addRecentFile(this, uri);
-                
-                // 💡 优雅平滑的渐隐淡出与渐现动效
-                progressLoading.animate().alpha(0f).setDuration(200).withEndAction(() -> {
-                    progressLoading.setVisibility(View.GONE);
-                    progressLoading.setAlpha(1f);
-                });
-                scrollView.setAlpha(0f);
-                scrollView.setVisibility(View.VISIBLE);
-                scrollView.animate().alpha(1f).setDuration(250).setListener(null);
-
-                // 💡 异步恢复滚动高度
-                if (savedScrollY > 0) {
-                    scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
-                }
+                renderContent(markdown, spanned, uri);
             });
         });
+    }
+
+    private void showLoadingState() {
+        progressLoading.setAlpha(1f);
+        progressLoading.setVisibility(View.VISIBLE);
+        scrollView.setVisibility(View.GONE);
+    }
+
+    private void showLoadingError() {
+        AppExecutor.getInstance().mainThread().post(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            progressLoading.setVisibility(View.GONE);
+            scrollView.setAlpha(1f);
+            scrollView.setVisibility(View.VISIBLE);
+            Toast.makeText(this, R.string.error_read_failed, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void renderContent(String markdown, Spanned spanned, Uri uri) {
+        rawMarkdownContent = markdown;
+        markwon.setParsedMarkdown(markdownTextView, spanned);
+        RecentFilesManager.addRecentFile(this, uri);
+
+        progressLoading.animate().alpha(0f).setDuration(Constants.ANIM_DURATION_FADE).withEndAction(() -> {
+            progressLoading.setVisibility(View.GONE);
+            progressLoading.setAlpha(1f);
+        });
+        scrollView.setAlpha(0f);
+        scrollView.setVisibility(View.VISIBLE);
+        scrollView.animate().alpha(1f).setDuration(Constants.ANIM_DURATION_APPEAR).setListener(null);
+
+        if (savedScrollY > 0) {
+            scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+        }
     }
 }

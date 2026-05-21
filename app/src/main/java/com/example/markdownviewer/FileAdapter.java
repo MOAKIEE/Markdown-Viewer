@@ -7,6 +7,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -21,9 +22,20 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
         this.listener = listener;
     }
 
-    public void setFiles(List<FileItem> files) {
-        this.files = files;
-        notifyDataSetChanged();
+    public void setFiles(List<FileItem> newFiles) {
+        List<FileItem> oldFiles = new ArrayList<>(files);
+        files = newFiles;
+
+        int oldSize = oldFiles.size();
+        int newSize = newFiles.size();
+
+        if (oldSize == 0 && newSize > 0) {
+            notifyItemRangeInserted(0, newSize);
+        } else if (newSize == 0 && oldSize > 0) {
+            notifyItemRangeRemoved(0, oldSize);
+        } else {
+            notifyDataSetChanged();
+        }
     }
 
     @NonNull
@@ -37,7 +49,7 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
     public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
         FileItem fileItem = files.get(position);
         holder.bind(fileItem);
-        holder.itemView.setOnClickListener(v -> listener.onFileClick(fileItem, position));
+        holder.itemView.setOnClickListener(v -> listener.onFileClick(fileItem, holder.getAdapterPosition()));
     }
 
     @Override
@@ -62,9 +74,9 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
             if (fileItem.isParent()) {
                 fileIconImage.setImageResource(R.drawable.ic_back);
                 fileTypeText.setText(R.string.file_picker_back);
-                cardView.setCardBackgroundColor(android.graphics.Color.parseColor("#0D007AFF"));
+                cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.getContext(), R.color.card_parent_tint));
             } else {
-                cardView.setCardBackgroundColor(itemView.getContext().getResources().getColor(R.color.ios_card_bg));
+                cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.getContext(), R.color.ios_card_bg));
                 if (fileItem.isDirectory()) {
                     fileIconImage.setImageResource(R.drawable.ic_folder_mini);
                     fileTypeText.setText(R.string.file_picker_folder);

@@ -1,24 +1,23 @@
 package com.example.markdownviewer;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.DocumentsContract;
+import android.util.Log;
 import android.view.View;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -26,13 +25,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class FilePickerActivity extends AppCompatActivity implements FileAdapter.OnFileClickListener {
 
-    private static final int PERMISSION_REQUEST_CODE = 100;
-    private static final int PICK_TREE_REQUEST = 200;
+    private static final String TAG = "FilePicker";
 
     private RecyclerView recyclerView;
     private FileAdapter fileAdapter;
@@ -43,9 +39,25 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     private View progressBar;
     private HorizontalScrollView scrollBreadcrumbs;
     private LinearLayout layoutBreadcrumbs;
-    
-    // 💡 引入路径历史栈，储存历次进入的 documentId，解决异构 DocumentId 分割的崩溃与失效风险
+
     private final ArrayList<String> mPathStack = new ArrayList<>();
+
+    private final ActivityResultLauncher<Intent> treePickerLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    treeUri = result.getData().getData();
+                    if (treeUri != null) {
+                        getContentResolver().takePersistableUriPermission(
+                                treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        currentPath = DocumentsContract.getDocumentId(treeUri);
+                        mPathStack.clear();
+                        loadFilesAsync(treeUri, currentPath);
+                    }
+                } else {
+                    if (treeUri == null) finish();
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -72,7 +84,11 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         SystemBarUtils.applyInsetsToView(findViewById(R.id.toolbar_container), true, false);
 
         if (savedInstanceState != null && savedInstanceState.containsKey("tree_uri")) {
-            treeUri = savedInstanceState.getParcelable("tree_uri");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                treeUri = savedInstanceState.getParcelable("tree_uri", Uri.class);
+            } else {
+                treeUri = savedInstanceState.getParcelable("tree_uri");
+            }
             currentPath = savedInstanceState.getString("current_path");
             ArrayList<String> savedStack = savedInstanceState.getStringArrayList("path_stack");
             if (savedStack != null) {
@@ -95,34 +111,12 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         outState.putStringArrayList("path_stack", mPathStack);
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-
     private void openTreePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             intent.putExtra(DocumentsContract.EXTRA_PROMPT, getString(R.string.file_picker_select_folder));
         }
-        startActivityForResult(intent, PICK_TREE_REQUEST);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_TREE_REQUEST && resultCode == Activity.RESULT_OK && data != null) {
-            treeUri = data.getData();
-            if (treeUri != null) {
-                getContentResolver().takePersistableUriPermission(
-                        treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                currentPath = DocumentsContract.getDocumentId(treeUri);
-                mPathStack.clear(); // 选择新根目录时，清空历史栈
-                loadFilesAsync(treeUri, currentPath);
-            }
-        } else if (requestCode == PICK_TREE_REQUEST) {
-            if (treeUri == null) finish();
-        }
+        treePickerLauncher.launch(intent);
     }
 
     private void loadFilesAsync(Uri uri, String documentId) {
@@ -163,12 +157,13 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                         }
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to query children for documentId: " + documentId, e);
+            }
 
             Collections.sort(dirList, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
             Collections.sort(mdList, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
 
-            // 💡 使用目录栈的大小来判断是否展示“返回上级”选项，而不是判断 indexOf('/') 
             if (!mPathStack.isEmpty()) {
                 String parentId = mPathStack.get(mPathStack.size() - 1);
                 fileItems.add(new FileItem("..", parentId, true, true, 0));
@@ -183,12 +178,11 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                     recyclerView.setVisibility(View.GONE);
                     emptyView.setVisibility(View.VISIBLE);
                 } else {
-                    // 💡 对列表施加优雅的渐现微动效
                     recyclerView.setAlpha(0f);
                     recyclerView.setVisibility(View.VISIBLE);
                     recyclerView.animate()
                             .alpha(1f)
-                            .setDuration(250)
+                            .setDuration(Constants.ANIM_DURATION_APPEAR)
                             .setListener(null);
                     emptyView.setVisibility(View.GONE);
                     fileAdapter.setFiles(fileItems);
@@ -205,8 +199,6 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         return lower.endsWith(".md") || lower.endsWith(".markdown");
     }
 
-
-
     private String extractDisplayName(String documentId) {
         if (documentId == null) return "";
         int lastSlash = documentId.lastIndexOf('/');
@@ -217,9 +209,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     public void onFileClick(FileItem fileItem, int position) {
         if (fileItem.isDirectory()) {
             if (fileItem.isParent()) {
-                handleBack(); // 💡 统一通过 handleBack 驱动出栈与加载
+                handleBack();
             } else {
-                // 💡 进入下一级子目录：把上一级 currentPath 压入历史栈中，再加载新目录
                 mPathStack.add(currentPath);
                 loadFilesAsync(treeUri, fileItem.getDocumentId());
             }
@@ -240,7 +231,6 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private void handleBack() {
         if (!mPathStack.isEmpty()) {
-            // 💡 点击返回：从历史栈中弹出（移除）最上层，然后读取该目录 ID
             String parentId = mPathStack.remove(mPathStack.size() - 1);
             loadFilesAsync(treeUri, parentId);
         } else {
@@ -283,7 +273,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                 android.widget.ImageView ivDivider = new android.widget.ImageView(this);
                 ivDivider.setImageResource(R.drawable.ic_chevron_right);
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                    ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.ios_text_secondary)));
+                    ivDivider.setImageTintList(android.content.res.ColorStateList.valueOf(
+                            ContextCompat.getColor(this, R.color.ios_text_secondary)));
                 }
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                         (int) (12 * scale + 0.5f), (int) (12 * scale + 0.5f));
@@ -313,10 +304,10 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
             boolean isLast = (i == segments.size() - 1);
             if (isLast) {
-                tvSegment.setTextColor(getResources().getColor(R.color.ios_text_primary));
+                tvSegment.setTextColor(ContextCompat.getColor(this, R.color.ios_text_primary));
                 tvSegment.setTypeface(null, android.graphics.Typeface.BOLD);
             } else {
-                tvSegment.setTextColor(getResources().getColor(R.color.ios_blue));
+                tvSegment.setTextColor(ContextCompat.getColor(this, R.color.ios_blue));
                 tvSegment.setClickable(true);
                 tvSegment.setFocusable(true);
                 tvSegment.setOnClickListener(v -> {

@@ -101,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
         if (layoutHeader != null) layoutHeader.setVisibility(View.VISIBLE);
         int count = 0;
         for (RecentFilesManager.RecentEntry entry : list) {
-            if (count >= 5) break;
+            if (count >= Constants.MAX_RECENT_DISPLAY) break;
             count++;
             View item = LayoutInflater.from(this).inflate(R.layout.item_recent_file, recentContainer, false);
             TextView tvName = item.findViewById(R.id.tv_file_name);
@@ -121,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
                     intent.setData(uri);
                     startActivity(intent);
                 } catch (SecurityException | IllegalArgumentException e) {
-                    android.widget.Toast.makeText(this, "该文件已移位或失效，已自动清除记录", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(this, R.string.recent_file_invalid, android.widget.Toast.LENGTH_SHORT).show();
                     RecentFilesManager.removeRecentFile(this, entry.uri);
                     refreshRecentFiles();
                 }

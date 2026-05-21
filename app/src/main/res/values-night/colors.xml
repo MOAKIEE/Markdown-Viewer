@@ -10,4 +10,54 @@
     <color name="ios_blue_dark">#0051D5</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
+
+    <!-- Reader theme: Classic (adaptive) - dark mode variants already handled in code via isDarkMode -->
+    <color name="theme_classic_circle">#E5E5EA</color>
+    <color name="theme_classic_toolbar_light">#99FFFFFF</color>
+    <color name="theme_classic_toolbar_dark">#991C1C1E</color>
+    <color name="theme_classic_code_bg">#1A808080</color>
+    <color name="theme_classic_code_block_bg">#10808080</color>
+    <color name="theme_classic_block_quote">#30808080</color>
+    <color name="theme_classic_link_light">#FF1E88E5</color>
+    <color name="theme_classic_link_dark">#FF64B5F6</color>
+
+    <!-- Reader theme: Sepia -->
+    <color name="theme_sepia_bg">#FFF4F1EA</color>
+    <color name="theme_sepia_card">#FFFAF7F2</color>
+    <color name="theme_sepia_text">#FF3E3A33</color>
+    <color name="theme_sepia_toolbar">#DDFAF7F2</color>
+    <color name="theme_sepia_hint">#883E3A33</color>
+    <color name="theme_sepia_code_bg">#189E6F33</color>
+    <color name="theme_sepia_code_block_bg">#109E6F33</color>
+    <color name="theme_sepia_block_quote">#30B37D14</color>
+    <color name="theme_sepia_link">#FFB37D14</color>
+
+    <!-- Reader theme: Dark Green -->
+    <color name="theme_green_bg">#FF121E18</color>
+    <color name="theme_green_card">#FF192A21</color>
+    <color name="theme_green_text">#FFDFEDE5</color>
+    <color name="theme_green_toolbar">#DD192A21</color>
+    <color name="theme_green_hint">#88DFEDE5</color>
+    <color name="theme_green_code_bg">#1E808080</color>
+    <color name="theme_green_code_block_bg">#14808080</color>
+    <color name="theme_green_block_quote">#305AB88A</color>
+    <color name="theme_green_link">#FF5AB88A</color>
+
+    <!-- Reader theme: Deep Space -->
+    <color name="theme_space_bg">#FF0B0F19</color>
+    <color name="theme_space_card">#FF121829</color>
+    <color name="theme_space_text">#FFD8E2F8</color>
+    <color name="theme_space_toolbar">#DD121829</color>
+    <color name="theme_space_hint">#88D8E2F8</color>
+    <color name="theme_space_code_bg">#24808080</color>
+    <color name="theme_space_code_block_bg">#1A808080</color>
+    <color name="theme_space_block_quote">#304988ED</color>
+    <color name="theme_space_link">#FF4988ED</color>
+
+    <!-- Shared UI colors -->
+    <color name="card_parent_tint">#0D007AFF</color>
+    <color name="spacing_highlight_active">#40808080</color>
+    <color name="spacing_highlight_inactive">#15808080</color>
+    <color name="divider_line">#15808080</color>
+    <color name="drag_handle">#338E8E93</color>
 </resources>

@@ -5,8 +5,11 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.text.TextUtils;
+import android.util.Log;
 
 public class FileUtils {
+
+    private static final String TAG = "FileUtils";
 
     public static String getDisplayName(Context context, Uri uri) {
         if (uri == null) return "Untitled";
@@ -20,7 +23,9 @@ public class FileUtils {
                         if (!TextUtils.isEmpty(name)) return name;
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to query display name for URI: " + uri, e);
+            }
         }
 
         String path = uri.getLastPathSegment();

@@ -37,4 +37,22 @@
     <string name="toc_empty">未检测到标题</string>
 
     <string name="recent_files_untitled">Untitled</string>
+
+    <string name="reader_config_title">阅读设置</string>
+    <string name="reader_font_size_label">字号大小</string>
+    <string name="reader_font_size_decrease">A-</string>
+    <string name="reader_font_size_default_format">%d sp</string>
+    <string name="reader_font_size_increase">A+</string>
+    <string name="reader_line_spacing_label">阅读行距</string>
+    <string name="reader_theme_label">阅读主题</string>
+    <string name="theme_classic">经典</string>
+    <string name="theme_sepia">书香</string>
+    <string name="theme_green">幽绿</string>
+    <string name="theme_space">深空</string>
+    <string name="error_font_size_min">字号已达最小限制</string>
+    <string name="error_font_size_max">字号已达最大限制</string>
+    <string name="recent_file_invalid">该文件已移位或失效，已自动清除记录</string>
+    <string name="about_markwon">Markwon 渲染</string>
+    <string name="about_blurview">BlurView 模糊</string>
+    <string name="about_androidx">AndroidX 架构</string>
 </resources>

@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class FilePickerActivity extends AppCompatActivity implements FileAdapter.OnFileClickListener {
 
@@ -48,8 +49,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     treeUri = result.getData().getData();
                     if (treeUri != null) {
-                        getContentResolver().takePersistableUriPermission(
-                                treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        UriPermissionUtils.takeReadPermission(getContentResolver(), treeUri);
                         currentPath = DocumentsContract.getDocumentId(treeUri);
                         mPathStack.clear();
                         loadFilesAsync(treeUri, currentPath);
@@ -64,7 +64,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_file_picker);
 
-        SystemBarUtils.applyLightSystemBars(getWindow());
+        SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
 
         eightbitlab.com.blurview.BlurView blurView = findViewById(R.id.blur_view);
         BlurHelper.setup(this, blurView);
@@ -114,6 +114,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private void openTreePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        UriPermissionUtils.addReadPersistableFlags(intent);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             intent.putExtra(DocumentsContract.EXTRA_PROMPT, getString(R.string.file_picker_select_folder));
         }
@@ -199,7 +200,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private boolean isMarkdownFile(String name) {
         if (name == null) return false;
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".md") || lower.endsWith(".markdown")
                 || lower.endsWith(".mdown") || lower.endsWith(".mkd")
                 || lower.endsWith(".mkdn") || lower.endsWith(".mdwn");

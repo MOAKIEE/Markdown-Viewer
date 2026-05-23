@@ -11,6 +11,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,8 +76,8 @@ public final class SearchHelper {
                 matches.add(new int[]{matcher.start(), matcher.end()});
             }
         } catch (Exception e) {
-            String srcLower = src.toLowerCase();
-            String queryLower = query.toLowerCase();
+            String srcLower = src.toLowerCase(Locale.ROOT);
+            String queryLower = query.toLowerCase(Locale.ROOT);
             int index = srcLower.indexOf(queryLower);
             while (index >= 0 && matches.size() < MAX_MATCHES) {
                 matches.add(new int[]{index, index + query.length()});
@@ -85,8 +86,9 @@ public final class SearchHelper {
         }
 
         if (matches.isEmpty()) {
-            tvCount.setText("0/0");
-            clearHighlights();
+            clearHighlightSpans();
+            currentMatch = -1;
+            tvCount.setText(R.string.search_count_empty);
             return;
         }
 
@@ -112,14 +114,7 @@ public final class SearchHelper {
     }
 
     public void clearHighlights() {
-        CharSequence text = textView.getText();
-        if (text instanceof Spannable) {
-            Spannable spannable = (Spannable) text;
-            SearchHighlightSpan[] spans = spannable.getSpans(0, spannable.length(), SearchHighlightSpan.class);
-            for (SearchHighlightSpan span : spans) {
-                spannable.removeSpan(span);
-            }
-        }
+        clearHighlightSpans();
         matches.clear();
         currentMatch = -1;
         tvCount.setText("");
@@ -132,6 +127,17 @@ public final class SearchHelper {
 
     public void destroy() {
         if (pendingSearch != null) handler.removeCallbacks(pendingSearch);
+    }
+
+    private void clearHighlightSpans() {
+        CharSequence text = textView.getText();
+        if (text instanceof Spannable) {
+            Spannable spannable = (Spannable) text;
+            SearchHighlightSpan[] spans = spannable.getSpans(0, spannable.length(), SearchHighlightSpan.class);
+            for (SearchHighlightSpan span : spans) {
+                spannable.removeSpan(span);
+            }
+        }
     }
 
     private void applyHighlights() {
@@ -177,9 +183,10 @@ public final class SearchHelper {
 
     private void updateCount() {
         if (matches.isEmpty()) {
-            tvCount.setText("0/0");
+            tvCount.setText(R.string.search_count_empty);
         } else {
-            tvCount.setText((currentMatch + 1) + "/" + matches.size());
+            tvCount.setText(tvCount.getContext().getString(
+                    R.string.search_count_format, currentMatch + 1, matches.size()));
         }
     }
 }

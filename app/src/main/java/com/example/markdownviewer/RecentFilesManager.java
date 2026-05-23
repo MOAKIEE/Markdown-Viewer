@@ -86,6 +86,14 @@ public class RecentFilesManager {
         }
     }
 
+    static List<RecentEntry> limitRecentFiles(List<RecentEntry> entries, int maxCount) {
+        if (entries == null || maxCount <= 0) {
+            return new ArrayList<>();
+        }
+        int count = Math.min(entries.size(), maxCount);
+        return new ArrayList<>(entries.subList(0, count));
+    }
+
     public static void clear(Context context) {
         synchronized (sLock) {
             sCache = null;

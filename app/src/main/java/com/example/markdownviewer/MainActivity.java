@@ -28,11 +28,11 @@ public class MainActivity extends AppCompatActivity {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     Uri uri = result.getData().getData();
                     if (uri != null) {
-                        getContentResolver().takePersistableUriPermission(
-                                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
                         RecentFilesManager.addRecentFile(this, uri);
                         Intent intent = new Intent(this, MarkdownActivity.class);
                         intent.setData(uri);
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         startActivity(intent);
                     }
                 }
@@ -43,8 +43,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        SystemBarUtils.applyLightSystemBars(getWindow());
-        SystemBarUtils.applyInsetsToView(findViewById(R.id.btn_about), true, false);
+        SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
+        SystemBarUtils.applyInsetsToMargins(findViewById(R.id.btn_about), true, false);
 
         blurView = findViewById(R.id.blur_view);
         backgroundContainer = findViewById(R.id.background_container);
@@ -84,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
         intent.setType("*/*");
         String[] mimeTypes = {"text/markdown", "text/x-markdown", "text/plain"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        UriPermissionUtils.addReadPersistableFlags(intent);
         openFileLauncher.launch(intent);
     }
 
@@ -98,19 +99,17 @@ public class MainActivity extends AppCompatActivity {
         recyclerRecentFiles.setVisibility(View.VISIBLE);
         if (layoutHeader != null) layoutHeader.setVisibility(View.VISIBLE);
 
-        int count = Math.min(list.size(), Constants.MAX_RECENT_DISPLAY);
-        recentFileAdapter.submitList(list.subList(0, count));
+        recentFileAdapter.submitList(
+                RecentFilesManager.limitRecentFiles(list, Constants.MAX_RECENT_DISPLAY));
     }
 
     private void onRecentFileClick(RecentFilesManager.RecentEntry entry) {
         try {
             Uri uri = Uri.parse(entry.uri);
-            if ("content".equals(uri.getScheme())) {
-                getContentResolver().takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            }
+            UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
             Intent intent = new Intent(this, MarkdownActivity.class);
             intent.setData(uri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(intent);
         } catch (SecurityException | IllegalArgumentException e) {
             android.widget.Toast.makeText(this, R.string.recent_file_invalid, android.widget.Toast.LENGTH_SHORT).show();

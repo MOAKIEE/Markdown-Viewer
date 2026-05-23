@@ -25,6 +25,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:src="@drawable/ic_file_md"
+            android:importantForAccessibility="no"
             android:layout_marginEnd="12dp" />
 
         <TextView
@@ -43,6 +44,7 @@
             android:layout_height="20dp"
             android:src="@drawable/ic_chevron_right"
             app:tint="@color/ios_text_secondary"
+            android:importantForAccessibility="no"
             android:layout_marginStart="8dp" />
 
     </LinearLayout>

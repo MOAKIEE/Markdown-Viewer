@@ -1,7 +1,6 @@
 package com.example.markdownviewer;
 
 import android.os.Bundle;
-import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -15,7 +14,7 @@ public class AboutActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_about);
 
-        SystemBarUtils.applyLightSystemBars(getWindow());
+        SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
         SystemBarUtils.applyInsetsToView(findViewById(R.id.top_bar), true, false);
 
         BlurView blurView = findViewById(R.id.blur_view);

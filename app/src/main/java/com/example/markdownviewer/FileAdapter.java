@@ -71,9 +71,11 @@ public class FileAdapter extends ListAdapter<FileItem, FileAdapter.FileViewHolde
             fileNameText.setText(fileItem.getName());
             if (fileItem.isParent()) {
                 fileIconImage.setImageResource(R.drawable.ic_back);
+                fileIconImage.setColorFilter(ContextCompat.getColor(itemView.getContext(), R.color.ios_text_primary));
                 fileTypeText.setText(R.string.file_picker_back);
                 cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.getContext(), R.color.card_parent_tint));
             } else {
+                fileIconImage.clearColorFilter();
                 cardView.setCardBackgroundColor(ContextCompat.getColor(itemView.getContext(), R.color.ios_card_bg));
                 if (fileItem.isDirectory()) {
                     fileIconImage.setImageResource(R.drawable.ic_folder_mini);

@@ -110,6 +110,7 @@
             android:paddingHorizontal="12dp"
             android:imeOptions="actionSearch"
             android:inputType="text"
+            android:importantForAutofill="no"
             android:maxLines="1" />
 
         <TextView

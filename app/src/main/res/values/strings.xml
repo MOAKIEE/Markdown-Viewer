@@ -23,6 +23,8 @@
     <string name="markdown_title">文档</string>
     <string name="search_hint">搜索…</string>
     <string name="toc_title">目录</string>
+    <string name="search_count_empty">0/0</string>
+    <string name="search_count_format">%1$d/%2$d</string>
 
     <string name="permission_required_storage">需要存储权限才能读取文件</string>
     <string name="permission_required_browse">需要存储权限</string>

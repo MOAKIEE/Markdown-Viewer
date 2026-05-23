@@ -61,7 +61,7 @@ public class RecentFileAdapter extends ListAdapter<RecentFilesManager.RecentEntr
 
         void bind(RecentFilesManager.RecentEntry entry) {
             tvName.setText(entry.name != null && !entry.name.isEmpty()
-                    ? entry.name : "Untitled");
+                    ? entry.name : itemView.getContext().getString(R.string.recent_files_untitled));
         }
     }
 

@@ -12,7 +12,7 @@ public class FileUtils {
     private static final String TAG = "FileUtils";
 
     public static String getDisplayName(Context context, Uri uri) {
-        if (uri == null) return "Untitled";
+        if (uri == null) return context.getString(R.string.recent_files_untitled);
 
         if ("content".equals(uri.getScheme())) {
             try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
@@ -33,6 +33,6 @@ public class FileUtils {
             int lastSlash = path.lastIndexOf('/');
             return lastSlash != -1 ? path.substring(lastSlash + 1) : path;
         }
-        return "Untitled";
+        return context.getString(R.string.recent_files_untitled);
     }
 }

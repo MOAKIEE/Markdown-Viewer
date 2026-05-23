@@ -25,6 +25,7 @@
             android:id="@+id/file_icon"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:importantForAccessibility="no"
             android:layout_marginEnd="14dp" />
 
         <LinearLayout
@@ -55,6 +56,8 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:src="@drawable/ic_chevron_right"
+            app:tint="@color/ios_text_secondary"
+            android:importantForAccessibility="no"
             android:layout_marginStart="8dp" />
     </LinearLayout>
 

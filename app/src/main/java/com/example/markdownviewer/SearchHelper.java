@@ -78,9 +78,10 @@ public final class SearchHelper {
         } catch (Exception e) {
             String srcLower = src.toLowerCase(Locale.ROOT);
             String queryLower = query.toLowerCase(Locale.ROOT);
+            int queryLen = queryLower.length();
             int index = srcLower.indexOf(queryLower);
             while (index >= 0 && matches.size() < MAX_MATCHES) {
-                matches.add(new int[]{index, index + query.length()});
+                matches.add(new int[]{index, index + queryLen});
                 index = srcLower.indexOf(queryLower, index + 1);
             }
         }

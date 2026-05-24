@@ -52,12 +52,12 @@ public class MarkdownActivity extends AppCompatActivity {
     private View searchBar;
     private EditText etSearch;
 
-    private String rawMarkdownContent = "";
-    private List<TocParser.TocEntry> tocEntries;
+    private volatile String rawMarkdownContent = "";
+    private volatile List<TocParser.TocEntry> tocEntries;
     private SearchHelper searchHelper;
 
     private int savedScrollY = 0;
-    private Uri currentFileUri = null;
+    private volatile Uri currentFileUri = null;
 
     private SharedPreferences readerPrefs;
     private int currentThemeMode = 0;
@@ -73,7 +73,7 @@ public class MarkdownActivity extends AppCompatActivity {
         SystemBarUtils.applyLightSystemBars(getWindow());
 
         readerPrefs = getSharedPreferences(Constants.PREFS_READER_CONFIG, MODE_PRIVATE);
-        currentThemeMode = readerPrefs.getInt("theme_mode", 0);
+        currentThemeMode = readerPrefs.getInt("theme_mode", ReaderTheme.MODE_CLASSIC);
 
         tvTitle = findViewById(R.id.tv_title);
         markdownTextView = findViewById(R.id.markdown_text);
@@ -116,6 +116,12 @@ public class MarkdownActivity extends AppCompatActivity {
 
         Uri fileUri = getIntent().getData();
         String fileName = getIntent().getStringExtra("file_name");
+
+        if (fileUri != null && !"content".equals(fileUri.getScheme())) {
+            Toast.makeText(this, R.string.error_unsupported_source, Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
         viewModel = new ViewModelProvider(this).get(MarkdownViewModel.class);
 
@@ -329,7 +335,7 @@ public class MarkdownActivity extends AppCompatActivity {
             else newSpacing = 1.6f;
             readerPrefs.edit().putFloat("line_spacing", newSpacing).apply();
             updateSpacingHighlight.run();
-            applyReaderTheme(readerPrefs.getInt("theme_mode", 0), newSpacing);
+            applyReaderTheme(readerPrefs.getInt("theme_mode", ReaderTheme.MODE_CLASSIC), newSpacing);
         };
         btnSpacing12.setOnClickListener(spacingListener);
         btnSpacing14.setOnClickListener(spacingListener);
@@ -342,26 +348,26 @@ public class MarkdownActivity extends AppCompatActivity {
         View btnSpace = dialogView.findViewById(R.id.theme_space);
 
         Runnable updateThemeHighlight = () -> {
-            int theme = readerPrefs.getInt("theme_mode", 0);
-            btnClassic.setForeground(theme == 0 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
-            btnSepia.setForeground(theme == 1 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
-            btnGreen.setForeground(theme == 2 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
-            btnSpace.setForeground(theme == 3 ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            int theme = readerPrefs.getInt("theme_mode", ReaderTheme.MODE_CLASSIC);
+            btnClassic.setForeground(theme == ReaderTheme.MODE_CLASSIC ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnSepia.setForeground(theme == ReaderTheme.MODE_SEPIA ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnGreen.setForeground(theme == ReaderTheme.MODE_GREEN ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
+            btnSpace.setForeground(theme == ReaderTheme.MODE_SPACE ? ContextCompat.getDrawable(this, R.drawable.glass_card_stroke) : null);
 
             float selectedElevation = 8f;
-            btnClassic.setElevation(theme == 0 ? selectedElevation : 0f);
-            btnSepia.setElevation(theme == 1 ? selectedElevation : 0f);
-            btnGreen.setElevation(theme == 2 ? selectedElevation : 0f);
-            btnSpace.setElevation(theme == 3 ? selectedElevation : 0f);
+            btnClassic.setElevation(theme == ReaderTheme.MODE_CLASSIC ? selectedElevation : 0f);
+            btnSepia.setElevation(theme == ReaderTheme.MODE_SEPIA ? selectedElevation : 0f);
+            btnGreen.setElevation(theme == ReaderTheme.MODE_GREEN ? selectedElevation : 0f);
+            btnSpace.setElevation(theme == ReaderTheme.MODE_SPACE ? selectedElevation : 0f);
         };
         updateThemeHighlight.run();
 
         View.OnClickListener themeListener = v -> {
             int newTheme;
-            if (v.getId() == R.id.theme_classic) newTheme = 0;
-            else if (v.getId() == R.id.theme_sepia) newTheme = 1;
-            else if (v.getId() == R.id.theme_green) newTheme = 2;
-            else newTheme = 3;
+            if (v.getId() == R.id.theme_classic) newTheme = ReaderTheme.MODE_CLASSIC;
+            else if (v.getId() == R.id.theme_sepia) newTheme = ReaderTheme.MODE_SEPIA;
+            else if (v.getId() == R.id.theme_green) newTheme = ReaderTheme.MODE_GREEN;
+            else newTheme = ReaderTheme.MODE_SPACE;
             readerPrefs.edit().putInt("theme_mode", newTheme).apply();
             currentThemeMode = newTheme;
             updateThemeHighlight.run();

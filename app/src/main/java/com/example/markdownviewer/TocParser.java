@@ -26,7 +26,7 @@ public final class TocParser {
 
             String line = content.substring(lineStart, lineEnd).trim();
 
-            if (line.startsWith("```")) {
+            if (isFence(line)) {
                 inCodeBlock = !inCodeBlock;
             } else if (!inCodeBlock) {
                 Matcher m = HEADING_PATTERN.matcher(line);
@@ -41,6 +41,18 @@ public final class TocParser {
             lineIndex++;
         }
         return entries;
+    }
+
+    private static boolean isFence(String trimmedLine) {
+        if (trimmedLine.length() < 3) return false;
+        char c = trimmedLine.charAt(0);
+        if (c != '`' && c != '~') return false;
+        int count = 0;
+        for (int i = 0; i < trimmedLine.length(); i++) {
+            if (trimmedLine.charAt(i) == c) count++;
+            else break;
+        }
+        return count >= 3;
     }
 
     public static class TocEntry {

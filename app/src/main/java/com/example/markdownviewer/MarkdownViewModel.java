@@ -9,6 +9,16 @@ import java.util.List;
 
 public class MarkdownViewModel extends ViewModel {
 
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        rawMarkdownContent = null;
+        renderedContent = null;
+        tocEntries = null;
+        fileUri = null;
+        title = null;
+    }
+
     private String rawMarkdownContent;
     private Spanned renderedContent;
     private List<TocParser.TocEntry> tocEntries;

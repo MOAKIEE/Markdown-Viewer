@@ -37,7 +37,4 @@ public final class AppExecutor {
         return mMainThread;
     }
 
-    public void shutdown() {
-        mDiskIO.shutdownNow();
-    }
 }

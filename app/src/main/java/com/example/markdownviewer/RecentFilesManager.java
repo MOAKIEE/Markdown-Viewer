@@ -70,8 +70,8 @@ public class RecentFilesManager {
         if (uri == null) return 0;
         String uriString = uri.toString();
         synchronized (sLock) {
-            List<RecentEntry> list = loadListLocked(context);
-            for (RecentEntry entry : list) {
+            ensureCacheLoaded(context);
+            for (RecentEntry entry : sCache) {
                 if (entry.uri.equals(uriString)) {
                     return entry.scrollY;
                 }
@@ -82,7 +82,8 @@ public class RecentFilesManager {
 
     public static List<RecentEntry> getRecentFiles(Context context) {
         synchronized (sLock) {
-            return loadListLocked(context);
+            ensureCacheLoaded(context);
+            return new ArrayList<>(sCache);
         }
     }
 
@@ -109,6 +110,11 @@ public class RecentFilesManager {
             list.removeIf(e -> e.uri.equals(uriString));
             saveListLocked(context, list);
         }
+    }
+
+    private static void ensureCacheLoaded(Context context) {
+        if (sCache != null) return;
+        loadListLocked(context);
     }
 
     private static List<RecentEntry> loadListLocked(Context context) {

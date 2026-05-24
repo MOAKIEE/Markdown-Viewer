@@ -16,13 +16,35 @@ import io.noties.markwon.image.glide.GlideImagesPlugin;
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
 import io.noties.markwon.linkify.LinkifyPlugin;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class MarkwonFactory {
 
-    private static final Pattern DANGEROUS_TAG_PATTERN = Pattern.compile(
-            "<\\s*/?(script|iframe|object|embed|form|input|meta|link|style|applet)[^>]*>",
+    private static final String SAFE_TAGS =
+            "p|br|hr|div|span|pre|code|blockquote|details|summary|"
+                    + "h[1-6]|ul|ol|li|dl|dt|dd|"
+                    + "a|img|figure|figcaption|picture|source|"
+                    + "b|strong|i|em|u|s|del|ins|mark|small|sub|sup|abbr|"
+                    + "table|thead|tbody|tfoot|tr|th|td|col|colgroup|caption|"
+                    + "kbd|samp|var|ruby|rt|rp|wbr";
+
+    private static final Pattern HTML_TAG_PATTERN = Pattern.compile(
+            "<(/?)\\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>",
+            Pattern.DOTALL);
+
+    private static final Pattern EVENT_HANDLER_PATTERN = Pattern.compile(
+            "\\s+on[a-zA-Z]+\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
             Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern DANGEROUS_URL_PATTERN = Pattern.compile(
+            "(href|src|action|formaction|xlink:href)\\s*=\\s*"
+                    + "(?:\"\\s*(?:javascript|vbscript|data)\\s*:[^\"]*\""
+                    + "|'\\s*(?:javascript|vbscript|data)\\s*:[^']*'"
+                    + "|\\s*(?:javascript|vbscript|data)\\s*:[^\\s>]*)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern SAFE_TAG_NAMES = Pattern.compile(SAFE_TAGS, Pattern.CASE_INSENSITIVE);
 
     private MarkwonFactory() {}
 
@@ -73,6 +95,26 @@ public final class MarkwonFactory {
 
     public static String sanitizeHtml(String content) {
         if (content == null) return null;
-        return DANGEROUS_TAG_PATTERN.matcher(content).replaceAll("");
+        Matcher matcher = HTML_TAG_PATTERN.matcher(content);
+        StringBuilder sb = new StringBuilder(content.length());
+        while (matcher.find()) {
+            String tagName = matcher.group(2);
+            if (SAFE_TAG_NAMES.matcher(tagName).matches()) {
+                String prefix = matcher.group(1);
+                if (!prefix.isEmpty()) {
+                    matcher.appendReplacement(sb, Matcher.quoteReplacement(
+                            "</" + tagName + ">"));
+                } else {
+                    String attrs = EVENT_HANDLER_PATTERN.matcher(matcher.group(3)).replaceAll("");
+                    attrs = DANGEROUS_URL_PATTERN.matcher(attrs).replaceAll("$1=\"#blocked\"");
+                    matcher.appendReplacement(sb, Matcher.quoteReplacement(
+                            "<" + tagName + attrs + ">"));
+                }
+            } else {
+                matcher.appendReplacement(sb, "");
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 }

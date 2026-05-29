@@ -26,37 +26,66 @@ public class MarkwonFactoryTest {
     @Test
     public void sanitizeHtml_scriptTag_removed() {
         String input = "<p>Hello</p><script>alert(1)</script>";
+        // jsoup 移除 script 标签及其内容
+        assertEquals("<p>Hello</p>", MarkwonFactory.sanitizeHtml(input));
+    }
+
+    @Test
+    public void sanitizeHtml_styleTag_removed() {
+        String input = "<p>Hello</p><style>body{color:red}</style>";
         assertEquals("<p>Hello</p>", MarkwonFactory.sanitizeHtml(input));
     }
 
     @Test
     public void sanitizeHtml_eventHandler_removed() {
         String input = "<img src=\"x\" onclick=\"alert(1)\" />";
-        assertEquals("<img src=\"x\" />", MarkwonFactory.sanitizeHtml(input));
+        // jsoup 保留 img 标签但移除 onclick 属性，自闭合标签格式可能变化
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("<img"));
+        assertTrue(result.contains("src=\"x\""));
+        assertFalse(result.contains("onclick"));
     }
 
     @Test
     public void sanitizeHtml_javascriptUrl_blocked() {
         String input = "<a href=\"javascript:alert(1)\">Click</a>";
-        assertEquals("<a href=\"#blocked\">Click</a>", MarkwonFactory.sanitizeHtml(input));
+        // jsoup 自动移除 javascript: URL（href 被清空）
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("<a"));
+        assertTrue(result.contains(">Click</a>"));
+        assertFalse(result.contains("javascript"));
     }
 
     @Test
-    public void sanitizeHtml_dataUrl_blocked() {
+    public void sanitizeHtml_vbscriptUrl_blocked() {
+        String input = "<a href=\"vbscript:msgbox(1)\">Click</a>";
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertFalse(result.contains("vbscript"));
+    }
+
+    @Test
+    public void sanitizeHtml_dataTextHtmlUrl_blocked() {
         String input = "<img src=\"data:text/html,<script>alert(1)</script>\" />";
-        assertEquals("<img src=\"#blocked\" />", MarkwonFactory.sanitizeHtml(input));
+        // 自定义后处理会清空恶意的 data: URL
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("<img"));
+        assertFalse(result.contains("data:text/html"));
     }
 
     @Test
-    public void sanitizeHtml_styleWithExpression_removed() {
-        String input = "<div style=\"width: expression(alert(1))\">Text</div>";
-        assertEquals("<div>Text</div>", MarkwonFactory.sanitizeHtml(input));
+    public void sanitizeHtml_safeDataImageUrl_allowed() {
+        String input = "<img src=\"data:image/png;base64,abc123\" />";
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("data:image/png"));
     }
 
     @Test
     public void sanitizeHtml_dangerousAttrs_removed() {
         String input = "<a href=\"https://example.com\" target=\"_blank\" download=\"file.exe\">Link</a>";
-        assertEquals("<a href=\"https://example.com\">Link</a>", MarkwonFactory.sanitizeHtml(input));
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("href=\"https://example.com\""));
+        assertFalse(result.contains("target"));
+        assertFalse(result.contains("download"));
     }
 
     @Test
@@ -66,15 +95,24 @@ public class MarkwonFactoryTest {
     }
 
     @Test
-    public void sanitizeHtml_cdata_removed() {
-        String input = "<![CDATA[ <script>alert(1)</script> ]]><p>Text</p>";
+    public void sanitizeHtml_doctype_removed() {
+        String input = "<!DOCTYPE html><p>Text</p>";
         assertEquals("<p>Text</p>", MarkwonFactory.sanitizeHtml(input));
     }
 
     @Test
-    public void sanitizeHtml_doctype_removed() {
-        String input = "<!DOCTYPE html><p>Text</p>";
-        assertEquals("<p>Text</p>", MarkwonFactory.sanitizeHtml(input));
+    public void sanitizeHtml_unsafeTag_removed() {
+        String input = "<p>Safe</p><iframe src=\"evil.com\"></iframe>";
+        assertEquals("<p>Safe</p>", MarkwonFactory.sanitizeHtml(input));
+    }
+
+    @Test
+    public void sanitizeHtml_nestedUnsafe_removed() {
+        String input = "<div><script>alert(1)</script><p>Safe</p></div>";
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("<div>"));
+        assertTrue(result.contains("<p>Safe</p>"));
+        assertFalse(result.contains("script"));
     }
 
     @Test

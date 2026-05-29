@@ -5,6 +5,11 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.safety.Safelist;
+
 import io.noties.markwon.AbstractMarkwonPlugin;
 import io.noties.markwon.Markwon;
 import io.noties.markwon.core.MarkwonTheme;
@@ -16,66 +21,41 @@ import io.noties.markwon.image.glide.GlideImagesPlugin;
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
 import io.noties.markwon.linkify.LinkifyPlugin;
 
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class MarkwonFactory {
 
-    private static final String SAFE_TAGS =
-            "p|br|hr|div|span|pre|code|blockquote|"
-                    + "h[1-6]|ul|ol|li|dl|dt|dd|"
-                    + "a|img|figure|figcaption|"
-                    + "b|strong|i|em|u|s|del|ins|mark|small|sub|sup|abbr|"
-                    + "table|thead|tbody|tfoot|tr|th|td|col|colgroup|caption|"
-                    + "kbd|samp|var|wbr";
-
-    private static final Pattern HTML_TAG_PATTERN = Pattern.compile(
-            "<(/?)\\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>",
-            Pattern.DOTALL);
-
-    // HTML 注释、CDATA、DOCTYPE — 直接移除
-    private static final Pattern HTML_COMMENT_PATTERN = Pattern.compile(
-            "<!--.*?-->", Pattern.DOTALL);
-    private static final Pattern HTML_CDATA_PATTERN = Pattern.compile(
-            "<!\\[CDATA\\[.*?\\]\\]>", Pattern.DOTALL);
-    private static final Pattern HTML_DOCTYPE_PATTERN = Pattern.compile(
-            "<!DOCTYPE[^>]*>", Pattern.CASE_INSENSITIVE);
-
-    // 事件处理器：支持原始形式和 HTML 实体编码（如 &#111;&#110; = on）
-    private static final Pattern EVENT_HANDLER_PATTERN = Pattern.compile(
-            "\\s+(?:on|&#(?:111|79);&#(?:110|78);|&#x(?:6f|4f);&#x(?:6e|4e);)[a-zA-Z]+\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
-            Pattern.CASE_INSENSITIVE);
-
-    // 危险 URL 协议：javascript, vbscript, data, file
-    private static final Pattern DANGEROUS_URL_PATTERN = Pattern.compile(
-            "(href|src|action|formaction|xlink:href|background)\\s*=\\s*"
-                    + "(?:\"\\s*(?:javascript|vbscript|data|file)\\s*:([^\"]*)\""
-                    + "|'\\s*(?:javascript|vbscript|data|file)\\s*:([^']*)'"
-                    + "|\\s*(?:javascript|vbscript|data|file)\\s*:([^\\s>]\\S*))",
-            Pattern.CASE_INSENSITIVE);
-
-    // style 属性中的危险 CSS（expression, behavior, javascript, moz-binding）
-    private static final Pattern DANGEROUS_STYLE_PATTERN = Pattern.compile(
-            "\\s+style\\s*=\\s*(?:\"[^\"]*(?:expression|behavior|javascript|moz-binding)[^\"]*\""
-                    + "|'[^']*(?:expression|behavior|javascript|moz-binding)[^']*'"
-                    + "|[^\\s>]*(?:expression|behavior|javascript|moz-binding)[^\\s>]*)",
-            Pattern.CASE_INSENSITIVE);
-
-    // 危险属性：target, download, ping（保留 rel 用于 nofollow 等安全用途，但清理危险值）
-    private static final Pattern DANGEROUS_ATTRS_PATTERN = Pattern.compile(
-            "\\s+(?:target|download|ping)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
-            Pattern.CASE_INSENSITIVE);
-
-    private static final Pattern SAFE_TAG_NAMES = Pattern.compile(SAFE_TAGS, Pattern.CASE_INSENSITIVE);
-
     private static final Pattern LATEX_PATTERN = Pattern.compile(
             "\\$\\$|\\\\\\(|\\\\\\[");
 
-    // 移除 script 和 style 标签及其内容
-    private static final Pattern SCRIPT_TAG_PATTERN = Pattern.compile(
-            "<script[^>]*>.*?</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile(
-            "<style[^>]*>.*?</style>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    /**
+     * jsoup Safelist 配置：只允许安全的 HTML 标签和属性。
+     * 对比手写正则，jsoup 能正确解析 HTML 结构，不受实体编码、注释、嵌套等绕过技术影响。
+     */
+    /**
+     * jsoup Safelist 配置：只允许安全的 HTML 标签和属性。
+     * 注意：不限制 URL 协议，危险 URL（javascript: 等）在 {@link #sanitizeHtml} 的
+     * 后处理步骤中通过 {@link #sanitizeDangerousUrls} 清理。
+     */
+    private static final Safelist MARKDOWN_SAFE_LIST = Safelist.none()
+            // 基础文本标签
+            .addTags("p", "br", "hr", "div", "span", "pre", "code", "blockquote")
+            // 标题
+            .addTags("h1", "h2", "h3", "h4", "h5", "h6")
+            // 列表
+            .addTags("ul", "ol", "li", "dl", "dt", "dd")
+            // 链接和图片
+            .addTags("a", "img", "figure", "figcaption")
+            // 文本格式化
+            .addTags("b", "strong", "i", "em", "u", "s", "del", "ins", "mark", "small", "sub", "sup", "abbr")
+            // 表格
+            .addTags("table", "thead", "tbody", "tfoot", "tr", "th", "td", "col", "colgroup", "caption")
+            // 其他
+            .addTags("kbd", "samp", "var", "wbr")
+            // 允许的 a 标签属性
+            .addAttributes("a", "href")
+            // 允许的 img 标签属性
+            .addAttributes("img", "src", "alt", "title", "width", "height");
 
     private MarkwonFactory() {}
 
@@ -124,43 +104,68 @@ public final class MarkwonFactory {
         return LATEX_PATTERN.matcher(content).find();
     }
 
+    /**
+     * 使用 jsoup 进行可靠的 HTML 清理。
+     *
+     * <p>与手写正则相比的优势：
+     * <ul>
+     *   <li>正确解析 HTML 树结构，不受实体编码绕过影响</li>
+     *   <li>自动移除所有不在白名单中的标签</li>
+     *   <li>自动过滤危险属性（on* 事件处理器、javascript: URL 等）</li>
+     *   <li>正确处理注释、CDATA、DOCTYPE、嵌套标签</li>
+     * </ul>
+     *
+     * @param content 原始 Markdown 内容（可能包含内嵌 HTML）
+     * @return 清理后的安全 HTML
+     */
     public static String sanitizeHtml(String content) {
         if (content == null) return null;
 
-        // 1. 先移除 script/style 标签及其内容、HTML 注释、CDATA、DOCTYPE
-        String cleaned = SCRIPT_TAG_PATTERN.matcher(content).replaceAll("");
-        cleaned = STYLE_TAG_PATTERN.matcher(cleaned).replaceAll("");
-        cleaned = HTML_COMMENT_PATTERN.matcher(cleaned).replaceAll("");
-        cleaned = HTML_CDATA_PATTERN.matcher(cleaned).replaceAll("");
-        cleaned = HTML_DOCTYPE_PATTERN.matcher(cleaned).replaceAll("");
+        // 1. 使用 jsoup 的 Safelist 进行白名单过滤
+        String cleaned = Jsoup.clean(content, "", MARKDOWN_SAFE_LIST,
+                new Document.OutputSettings().prettyPrint(false));
 
-        // 2. 逐标签白名单过滤
-        Matcher matcher = HTML_TAG_PATTERN.matcher(cleaned);
-        StringBuilder sb = new StringBuilder(cleaned.length());
-        while (matcher.find()) {
-            String tagName = matcher.group(2);
-            if (SAFE_TAG_NAMES.matcher(tagName).matches()) {
-                String prefix = matcher.group(1);
-                if (!prefix.isEmpty()) {
-                    // 结束标签：标准化为简单形式
-                    matcher.appendReplacement(sb, Matcher.quoteReplacement(
-                            "</" + tagName.toLowerCase() + ">"));
-                } else {
-                    // 开始标签：清理危险属性
-                    String attrs = matcher.group(3);
-                    attrs = EVENT_HANDLER_PATTERN.matcher(attrs).replaceAll("");
-                    attrs = DANGEROUS_STYLE_PATTERN.matcher(attrs).replaceAll("");
-                    attrs = DANGEROUS_ATTRS_PATTERN.matcher(attrs).replaceAll("");
-                    attrs = DANGEROUS_URL_PATTERN.matcher(attrs).replaceAll("$1=\"#blocked\"");
-                    matcher.appendReplacement(sb, Matcher.quoteReplacement(
-                            "<" + tagName.toLowerCase() + attrs + ">"));
-                }
-            } else {
-                // 非白名单标签：直接移除
-                matcher.appendReplacement(sb, "");
+        // 2. 后处理：清理危险 URL 协议（javascript:, vbscript:, data:text/html 等）
+        cleaned = sanitizeDangerousUrls(cleaned);
+
+        return cleaned;
+    }
+
+    /**
+     * 后处理：清理危险的 URL（javascript:, vbscript:, data:text/html 等）。
+     * jsoup Safelist 已移除了所有 on* 事件处理器，但 href/src 中的危险协议需要额外清理。
+     */
+    private static String sanitizeDangerousUrls(String html) {
+        if (html == null) return html;
+        if (!html.contains(":")) return html;
+
+        org.jsoup.nodes.Document doc = Jsoup.parseBodyFragment(html);
+
+        // 清理 a[href] 中的危险协议
+        for (Element a : doc.select("a[href]")) {
+            String href = a.attr("href").trim().toLowerCase();
+            if (href.startsWith("javascript:") ||
+                href.startsWith("vbscript:") ||
+                href.startsWith("data:")) {
+                a.removeAttr("href");
             }
         }
-        matcher.appendTail(sb);
-        return sb.toString();
+
+        // 清理 img[src] 中的危险协议
+        for (Element img : doc.select("img[src]")) {
+            String src = img.attr("src").trim().toLowerCase();
+            if (src.startsWith("javascript:") ||
+                src.startsWith("vbscript:") ||
+                src.startsWith("data:text/html") ||
+                src.startsWith("data:text/javascript") ||
+                src.startsWith("data:application/javascript") ||
+                src.startsWith("data:application/x-javascript") ||
+                src.startsWith("data:application/xhtml+xml")) {
+                img.removeAttr("src");
+            }
+        }
+
+        String result = doc.body().html();
+        return result.isEmpty() ? html : result;
     }
 }

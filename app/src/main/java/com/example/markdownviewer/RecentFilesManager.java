@@ -6,16 +6,21 @@ import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.security.crypto.MasterKey;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class RecentFilesManager {
     private static final String TAG = "RecentFiles";
-    private static final String PREFS_NAME = "MarkdownViewerPrefs";
+    private static final String PREFS_NAME = "MarkdownViewerSecurePrefs";
     private static final String KEY_RECENT = "recent_files_json";
 
     private static final String JSON_KEY_URI = "uri";
@@ -23,7 +28,29 @@ public class RecentFilesManager {
     private static final String JSON_KEY_SCROLL_Y = "scroll_y";
 
     private static final Object sLock = new Object();
-    private static List<RecentEntry> sCache;
+    private static volatile List<RecentEntry> sCache;
+
+    /**
+     * 获取加密 SharedPreferences 实例。
+     * 如果加密初始化失败（如设备不支持），回退到普通 SharedPreferences。
+     */
+    private static SharedPreferences getSecurePrefs(Context context) {
+        try {
+            MasterKey masterKey = new MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build();
+            return EncryptedSharedPreferences.create(
+                    context,
+                    PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            );
+        } catch (GeneralSecurityException | IOException e) {
+            Log.w(TAG, "Failed to initialize EncryptedSharedPreferences, falling back to plain", e);
+            return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        }
+    }
 
     public static void addRecentFile(Context context, Uri uri) {
         if (uri == null) return;
@@ -98,8 +125,7 @@ public class RecentFilesManager {
     public static void clear(Context context) {
         synchronized (sLock) {
             sCache = null;
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().remove(KEY_RECENT).apply();
+            getSecurePrefs(context).edit().remove(KEY_RECENT).apply();
         }
     }
 
@@ -122,7 +148,7 @@ public class RecentFilesManager {
             return new ArrayList<>(sCache);
         }
         List<RecentEntry> result = new ArrayList<>();
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences prefs = getSecurePrefs(context);
         String raw = prefs.getString(KEY_RECENT, "");
         if (TextUtils.isEmpty(raw)) {
             sCache = result;
@@ -156,8 +182,7 @@ public class RecentFilesManager {
             arr.put(obj);
         }
         sCache = new ArrayList<>(list);
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putString(KEY_RECENT, arr.toString()).apply();
+        getSecurePrefs(context).edit().putString(KEY_RECENT, arr.toString()).apply();
     }
 
     public static class RecentEntry {

@@ -27,6 +27,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.example.markdownviewer.databinding.ActivityMarkdownBinding;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import java.util.List;
@@ -41,14 +42,8 @@ public class MarkdownActivity extends AppCompatActivity {
     private static final String STATE_SEARCH_TEXT = "search_text";
     private static final String STATE_SCROLL_Y = "scroll_y_instance";
 
-    private TextView markdownTextView;
-    private TextView tvTitle;
+    private ActivityMarkdownBinding binding;
     private Markwon markwon;
-    private ScrollView scrollView;
-    private ProgressBar progressLoading;
-
-    private View searchBar;
-    private EditText etSearch;
 
     private SearchHelper searchHelper;
 
@@ -64,7 +59,8 @@ public class MarkdownActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_markdown);
+        binding = ActivityMarkdownBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         // 1. Intent 安全校验（必须在任何逻辑之前）
         if (!validateIntent()) {
@@ -78,38 +74,29 @@ public class MarkdownActivity extends AppCompatActivity {
         readerPrefs = getSharedPreferences(Constants.PREFS_READER_CONFIG, MODE_PRIVATE);
         currentThemeMode = readerPrefs.getInt(Constants.KEY_THEME_MODE, ReaderTheme.MODE_CLASSIC);
 
-        tvTitle = findViewById(R.id.tv_title);
-        markdownTextView = findViewById(R.id.markdown_text);
-        scrollView = findViewById(R.id.scroll_view);
-        progressLoading = findViewById(R.id.progress_loading);
-
         int savedFontSize = readerPrefs.getInt(Constants.KEY_FONT_SIZE, Constants.FONT_SIZE_DEFAULT);
-        markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedFontSize);
+        binding.markdownText.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedFontSize);
 
         float savedLineSpacing = readerPrefs.getFloat(Constants.KEY_LINE_SPACING, Constants.LINE_SPACING_DEFAULT);
         applyReaderTheme(currentThemeMode, savedLineSpacing);
 
-        findViewById(R.id.btn_back).setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
-        findViewById(R.id.btn_search).setOnClickListener(v -> showSearchBar());
-        findViewById(R.id.btn_toc).setOnClickListener(v -> showTocDialog());
-        findViewById(R.id.btn_settings).setOnClickListener(v -> showReaderConfigDialog());
+        binding.btnBack.setOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
+        binding.btnSearch.setOnClickListener(v -> showSearchBar());
+        binding.btnToc.setOnClickListener(v -> showTocDialog());
+        binding.btnSettings.setOnClickListener(v -> showReaderConfigDialog());
 
-        SystemBarUtils.applyInsetsToView(findViewById(R.id.toolbar_container), true, false);
+        SystemBarUtils.applyInsetsToView(binding.toolbarContainer, true, false);
 
-        searchBar = findViewById(R.id.search_bar);
-        etSearch = findViewById(R.id.et_search);
-        TextView tvSearchCount = findViewById(R.id.tv_search_count);
-
-        searchHelper = new SearchHelper(markdownTextView, etSearch, tvSearchCount,
+        searchHelper = new SearchHelper(binding.markdownText, binding.etSearch, binding.tvSearchCount,
                 ReaderTheme.getHighlightColor(this, currentThemeMode),
                 ReaderTheme.getCurrentHighlightColor(this, currentThemeMode));
         searchHelper.attachToEditText();
 
-        findViewById(R.id.btn_search_close).setOnClickListener(v -> hideSearchBar());
-        findViewById(R.id.btn_search_next).setOnClickListener(v -> searchHelper.nextMatch());
-        findViewById(R.id.btn_search_prev).setOnClickListener(v -> searchHelper.prevMatch());
+        binding.btnSearchClose.setOnClickListener(v -> hideSearchBar());
+        binding.btnSearchNext.setOnClickListener(v -> searchHelper.nextMatch());
+        binding.btnSearchPrev.setOnClickListener(v -> searchHelper.prevMatch());
 
-        etSearch.setOnEditorActionListener((v, actionId, event) -> {
+        binding.etSearch.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 searchHelper.performSearch();
                 return true;
@@ -121,7 +108,7 @@ public class MarkdownActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (searchBar != null && searchBar.getVisibility() == View.VISIBLE) {
+                if (binding.searchBar.getVisibility() == View.VISIBLE) {
                     hideSearchBar();
                 } else {
                     setEnabled(false);
@@ -140,9 +127,9 @@ public class MarkdownActivity extends AppCompatActivity {
             restoreFromViewModel();
         } else {
             if (fileName != null) {
-                tvTitle.setText(fileName);
+                binding.tvTitle.setText(fileName);
             } else if (fileUri != null) {
-                tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
+                binding.tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
             }
             if (fileUri != null) {
                 loadMarkdownFromUri(fileUri);
@@ -154,15 +141,15 @@ public class MarkdownActivity extends AppCompatActivity {
             savedScrollY = savedInstanceState.getInt(STATE_SCROLL_Y, 0);
             boolean searchVisible = savedInstanceState.getBoolean(STATE_SEARCH_VISIBLE, false);
             String searchText = savedInstanceState.getString(STATE_SEARCH_TEXT, "");
-            if (searchVisible && searchBar != null && etSearch != null) {
-                searchBar.setVisibility(View.VISIBLE);
-                etSearch.setText(searchText);
+            if (searchVisible) {
+                binding.searchBar.setVisibility(View.VISIBLE);
+                binding.etSearch.setText(searchText);
                 if (!searchText.isEmpty()) {
                     searchHelper.performSearch();
                 }
             }
-            if (savedScrollY > 0 && scrollView != null) {
-                scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+            if (savedScrollY > 0) {
+                binding.scrollView.post(() -> binding.scrollView.scrollTo(0, savedScrollY));
             }
         }
     }
@@ -177,32 +164,29 @@ public class MarkdownActivity extends AppCompatActivity {
 
     private String sanitizeFileName(String fileName) {
         if (fileName == null) return null;
-        // 限制长度，移除控制字符
         String sanitized = fileName.trim();
         if (sanitized.length() > 200) {
             sanitized = sanitized.substring(0, 200);
         }
-        return sanitized.replaceAll("[\\x00-\\x1F\\x7F]", "");
+        return sanitized.replaceAll("[\\u0000-\\u001F\\u007F]", "");
     }
 
     private void observeViewModel() {
         viewModel.getRenderedContent().observe(this, spanned -> {
-            if (spanned != null && markwon != null && markdownTextView != null) {
-                markwon.setParsedMarkdown(markdownTextView, spanned);
+            if (spanned != null && markwon != null) {
+                markwon.setParsedMarkdown(binding.markdownText, spanned);
             }
         });
 
         viewModel.getTitle().observe(this, title -> {
-            if (title != null && tvTitle != null) {
-                tvTitle.setText(title);
+            if (title != null) {
+                binding.tvTitle.setText(title);
             }
         });
 
         viewModel.getIsLoading().observe(this, isLoading -> {
-            if (isLoading != null) {
-                if (isLoading) {
-                    showLoadingState();
-                }
+            if (isLoading != null && isLoading) {
+                showLoadingState();
             }
         });
 
@@ -215,7 +199,7 @@ public class MarkdownActivity extends AppCompatActivity {
 
     private void restoreFromViewModel() {
         String title = viewModel.getTitle().getValue();
-        if (title != null && tvTitle != null) tvTitle.setText(title);
+        if (title != null) binding.tvTitle.setText(title);
 
         Integer scroll = viewModel.getScrollY().getValue();
         if (scroll != null && scroll > 0) {
@@ -226,18 +210,18 @@ public class MarkdownActivity extends AppCompatActivity {
         String raw = viewModel.getRawMarkdownContent().getValue();
         if (raw != null && !raw.isEmpty()) {
             boolean needsLatex = MarkwonFactory.contentNeedsLatex(raw);
-            markwon = MarkwonFactory.create(this, markdownTextView, currentThemeMode, needsLatex);
+            markwon = MarkwonFactory.create(this, binding.markdownText, currentThemeMode, needsLatex);
             cachedMarkwonTheme = currentThemeMode;
             cachedMarkwonLatex = needsLatex;
             if (cached != null) {
-                markwon.setParsedMarkdown(markdownTextView, cached);
+                markwon.setParsedMarkdown(binding.markdownText, cached);
             } else {
                 Spanned spanned = markwon.toMarkdown(raw);
-                markwon.setParsedMarkdown(markdownTextView, spanned);
+                markwon.setParsedMarkdown(binding.markdownText, spanned);
                 viewModel.setRenderedContent(spanned);
             }
-            if (savedScrollY > 0 && scrollView != null) {
-                scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+            if (savedScrollY > 0) {
+                binding.scrollView.post(() -> binding.scrollView.scrollTo(0, savedScrollY));
             }
         }
     }
@@ -246,24 +230,17 @@ public class MarkdownActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         Uri currentUri = viewModel.getFileUri().getValue();
-        if (scrollView != null && currentUri != null) {
-            RecentFilesManager.updateScrollY(this, currentUri, scrollView.getScrollY());
+        if (currentUri != null) {
+            RecentFilesManager.updateScrollY(this, currentUri, binding.scrollView.getScrollY());
         }
     }
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        // 只保存轻量 UI 状态，内容数据由 ViewModel 自动保留
-        if (searchBar != null) {
-            outState.putBoolean(STATE_SEARCH_VISIBLE, searchBar.getVisibility() == View.VISIBLE);
-        }
-        if (etSearch != null) {
-            outState.putString(STATE_SEARCH_TEXT, etSearch.getText().toString());
-        }
-        if (scrollView != null) {
-            outState.putInt(STATE_SCROLL_Y, scrollView.getScrollY());
-        }
+        outState.putBoolean(STATE_SEARCH_VISIBLE, binding.searchBar.getVisibility() == View.VISIBLE);
+        outState.putString(STATE_SEARCH_TEXT, binding.etSearch.getText().toString());
+        outState.putInt(STATE_SCROLL_Y, binding.scrollView.getScrollY());
     }
 
     @Override
@@ -271,6 +248,7 @@ public class MarkdownActivity extends AppCompatActivity {
         super.onDestroy();
         loadCancelled.set(true);
         if (searchHelper != null) searchHelper.destroy();
+        binding = null;
     }
 
     // ---- Theme ----
@@ -284,8 +262,8 @@ public class MarkdownActivity extends AppCompatActivity {
         int hintColor = ReaderTheme.getHintColor(this, themeMode);
 
         applyColorsToViews(bgColor, cardColor, textColor, toolbarBgColor, hintColor);
-        markdownTextView.setLineSpacing(0, lineSpacing);
-        markdownTextView.setLinkTextColor(ReaderTheme.getLinkColor(this, themeMode));
+        binding.markdownText.setLineSpacing(0, lineSpacing);
+        binding.markdownText.setLinkTextColor(ReaderTheme.getLinkColor(this, themeMode));
 
         String rawContent = viewModel.getRawMarkdownContent().getValue();
         if (rawContent != null && !rawContent.isEmpty()) {
@@ -294,18 +272,18 @@ public class MarkdownActivity extends AppCompatActivity {
             if (needsRebuild) {
                 cachedMarkwonTheme = themeMode;
                 cachedMarkwonLatex = needsLatex;
-                markwon = MarkwonFactory.create(this, markdownTextView, themeMode, needsLatex);
+                markwon = MarkwonFactory.create(this, binding.markdownText, themeMode, needsLatex);
             }
             AppExecutor.getInstance().computation().execute(() -> {
                 final Spanned spanned = markwon.toMarkdown(rawContent);
                 AppExecutor.getInstance().mainThread().post(() -> {
                     if (isFinishing() || isDestroyed()) return;
-                    markwon.setParsedMarkdown(markdownTextView, spanned);
+                    markwon.setParsedMarkdown(binding.markdownText, spanned);
                     viewModel.setRenderedContent(spanned);
                 });
             });
         } else {
-            markwon = MarkwonFactory.create(this, markdownTextView, themeMode);
+            markwon = MarkwonFactory.create(this, binding.markdownText, themeMode);
             cachedMarkwonTheme = themeMode;
             cachedMarkwonLatex = false;
         }
@@ -323,54 +301,39 @@ public class MarkdownActivity extends AppCompatActivity {
         }
 
         // 主题切换后如果搜索栏可见，刷新高亮颜色
-        if (searchBar != null && searchBar.getVisibility() == View.VISIBLE && etSearch != null) {
-            String query = etSearch.getText().toString();
-            if (!query.isEmpty()) {
-                searchHelper.performSearch();
-            }
+        if (binding.searchBar.getVisibility() == View.VISIBLE && !binding.etSearch.getText().toString().isEmpty()) {
+            searchHelper.performSearch();
         }
     }
 
     private void applyColorsToViews(int bgColor, int cardColor, int textColor, int toolbarBgColor, int hintColor) {
-        if (scrollView == null) return;
-        scrollView.setBackgroundColor(bgColor);
-        ViewParent parent = scrollView.getParent();
+        binding.scrollView.setBackgroundColor(bgColor);
+        ViewParent parent = binding.scrollView.getParent();
         if (parent instanceof View) {
             ((View) parent).setBackgroundColor(bgColor);
         }
 
-        ViewParent cardParent = markdownTextView.getParent();
+        ViewParent cardParent = binding.markdownText.getParent();
         if (cardParent instanceof androidx.cardview.widget.CardView) {
             ((androidx.cardview.widget.CardView) cardParent).setCardBackgroundColor(cardColor);
         }
 
-        markdownTextView.setTextColor(textColor);
-        tvTitle.setTextColor(textColor);
-
-        View toolbarContainer = findViewById(R.id.toolbar_container);
-        if (toolbarContainer != null) {
-            toolbarContainer.setBackgroundColor(toolbarBgColor);
-        }
+        binding.markdownText.setTextColor(textColor);
+        binding.tvTitle.setTextColor(textColor);
+        binding.toolbarContainer.setBackgroundColor(toolbarBgColor);
 
         int iconTint = textColor;
-        int[] btnIds = {R.id.btn_back, R.id.btn_toc, R.id.btn_search, R.id.btn_settings};
-        for (int id : btnIds) {
-            android.widget.ImageView btn = findViewById(id);
-            if (btn != null) btn.setColorFilter(iconTint);
-        }
+        binding.btnBack.setColorFilter(iconTint);
+        binding.btnToc.setColorFilter(iconTint);
+        binding.btnSearch.setColorFilter(iconTint);
+        binding.btnSettings.setColorFilter(iconTint);
 
-        if (searchBar != null) {
-            searchBar.setBackgroundColor(toolbarBgColor);
-        }
-        if (etSearch != null) {
-            etSearch.setTextColor(textColor);
-            etSearch.setHintTextColor(hintColor);
-        }
-        int[] searchBtnIds = {R.id.btn_search_prev, R.id.btn_search_next, R.id.btn_search_close};
-        for (int id : searchBtnIds) {
-            android.widget.ImageView btn = findViewById(id);
-            if (btn != null) btn.setColorFilter(iconTint);
-        }
+        binding.searchBar.setBackgroundColor(toolbarBgColor);
+        binding.etSearch.setTextColor(textColor);
+        binding.etSearch.setHintTextColor(hintColor);
+        binding.btnSearchPrev.setColorFilter(iconTint);
+        binding.btnSearchNext.setColorFilter(iconTint);
+        binding.btnSearchClose.setColorFilter(iconTint);
     }
 
     // ---- Reader Config Dialog ----
@@ -390,7 +353,7 @@ public class MarkdownActivity extends AppCompatActivity {
             if (currentSize[0] > Constants.FONT_SIZE_MIN) {
                 currentSize[0]--;
                 tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
-                markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
+                binding.markdownText.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
                 readerPrefs.edit().putInt(Constants.KEY_FONT_SIZE, currentSize[0]).apply();
             } else {
                 Toast.makeText(this, R.string.error_font_size_min, Toast.LENGTH_SHORT).show();
@@ -401,7 +364,7 @@ public class MarkdownActivity extends AppCompatActivity {
             if (currentSize[0] < Constants.FONT_SIZE_MAX) {
                 currentSize[0]++;
                 tvCurrentSize.setText(getString(R.string.reader_font_size_default_format, currentSize[0]));
-                markdownTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
+                binding.markdownText.setTextSize(TypedValue.COMPLEX_UNIT_SP, currentSize[0]);
                 readerPrefs.edit().putInt(Constants.KEY_FONT_SIZE, currentSize[0]).apply();
             } else {
                 Toast.makeText(this, R.string.error_font_size_max, Toast.LENGTH_SHORT).show();
@@ -501,7 +464,7 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     private void scrollToLine(int lineIndex) {
-        CharSequence text = markdownTextView.getText();
+        CharSequence text = binding.markdownText.getText();
         if (text == null) return;
 
         List<TocParser.TocEntry> entries = viewModel.getTocEntries().getValue();
@@ -516,20 +479,20 @@ public class MarkdownActivity extends AppCompatActivity {
         }
 
         final int targetOffset = offset;
-        markdownTextView.post(() -> {
-            android.text.Layout layout = markdownTextView.getLayout();
+        binding.markdownText.post(() -> {
+            android.text.Layout layout = binding.markdownText.getLayout();
             if (layout == null) return;
-            CharSequence t = markdownTextView.getText();
+            CharSequence t = binding.markdownText.getText();
             if (t == null) return;
 
             int line = layout.getLineForOffset(Math.min(targetOffset, t.length()));
             int y = layout.getLineTop(line);
 
-            int scrollViewHeight = scrollView.getHeight();
-            int targetY = y + markdownTextView.getTop() - (scrollViewHeight / 3);
+            int scrollViewHeight = binding.scrollView.getHeight();
+            int targetY = y + binding.markdownText.getTop() - (scrollViewHeight / 3);
             if (targetY < 0) targetY = 0;
 
-            scrollView.smoothScrollTo(0, targetY);
+            binding.scrollView.smoothScrollTo(0, targetY);
         });
     }
 
@@ -586,26 +549,20 @@ public class MarkdownActivity extends AppCompatActivity {
     // ---- Search UI ----
 
     private void showSearchBar() {
-        if (searchBar != null) {
-            searchBar.setVisibility(View.VISIBLE);
-        }
-        if (etSearch != null) {
-            etSearch.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(etSearch, InputMethodManager.SHOW_IMPLICIT);
-            }
+        binding.searchBar.setVisibility(View.VISIBLE);
+        binding.etSearch.requestFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(binding.etSearch, InputMethodManager.SHOW_IMPLICIT);
         }
     }
 
     private void hideSearchBar() {
-        if (searchBar != null) {
-            searchBar.setVisibility(View.GONE);
-        }
-        if (searchHelper != null) searchHelper.clearHighlights();
+        binding.searchBar.setVisibility(View.GONE);
+        searchHelper.clearHighlights();
         InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        if (imm != null && etSearch != null) {
-            imm.hideSoftInputFromWindow(etSearch.getWindowToken(), 0);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(binding.etSearch.getWindowToken(), 0);
         }
     }
 
@@ -627,8 +584,7 @@ public class MarkdownActivity extends AppCompatActivity {
 
         showLoadingState();
 
-        boolean needsLatex = false; // 先不判断，在 Repository 中处理
-        markwon = MarkwonFactory.create(this, markdownTextView, currentThemeMode);
+        markwon = MarkwonFactory.create(this, binding.markdownText, currentThemeMode);
         cachedMarkwonTheme = currentThemeMode;
         cachedMarkwonLatex = false;
 
@@ -652,43 +608,36 @@ public class MarkdownActivity extends AppCompatActivity {
     }
 
     private void showLoadingState() {
-        if (progressLoading == null || scrollView == null) return;
-        progressLoading.setAlpha(1f);
-        progressLoading.setVisibility(View.VISIBLE);
-        scrollView.setVisibility(View.GONE);
+        binding.progressLoading.setAlpha(1f);
+        binding.progressLoading.setVisibility(View.VISIBLE);
+        binding.scrollView.setVisibility(View.GONE);
     }
 
     private void showLoadingError(String error) {
         if (isFinishing() || isDestroyed()) return;
-        if (progressLoading != null) progressLoading.setVisibility(View.GONE);
-        if (scrollView != null) {
-            scrollView.setAlpha(1f);
-            scrollView.setVisibility(View.VISIBLE);
-        }
+        binding.progressLoading.setVisibility(View.GONE);
+        binding.scrollView.setAlpha(1f);
+        binding.scrollView.setVisibility(View.VISIBLE);
         String message = error != null ? error : getString(R.string.error_read_failed);
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private void renderContent(Spanned spanned, Uri uri) {
-        if (markwon != null && markdownTextView != null) {
-            markwon.setParsedMarkdown(markdownTextView, spanned);
+        if (markwon != null) {
+            markwon.setParsedMarkdown(binding.markdownText, spanned);
         }
         RecentFilesManager.addRecentFile(this, uri);
 
-        if (progressLoading != null) {
-            progressLoading.animate().alpha(0f).setDuration(Constants.ANIM_DURATION_FADE).withEndAction(() -> {
-                progressLoading.setVisibility(View.GONE);
-                progressLoading.setAlpha(1f);
-            });
-        }
-        if (scrollView != null) {
-            scrollView.setAlpha(0f);
-            scrollView.setVisibility(View.VISIBLE);
-            scrollView.animate().alpha(1f).setDuration(Constants.ANIM_DURATION_APPEAR).setListener(null);
-        }
+        binding.progressLoading.animate().alpha(0f).setDuration(Constants.ANIM_DURATION_FADE).withEndAction(() -> {
+            binding.progressLoading.setVisibility(View.GONE);
+            binding.progressLoading.setAlpha(1f);
+        });
+        binding.scrollView.setAlpha(0f);
+        binding.scrollView.setVisibility(View.VISIBLE);
+        binding.scrollView.animate().alpha(1f).setDuration(Constants.ANIM_DURATION_APPEAR).setListener(null);
 
-        if (savedScrollY > 0 && scrollView != null) {
-            scrollView.post(() -> scrollView.scrollTo(0, savedScrollY));
+        if (savedScrollY > 0) {
+            binding.scrollView.post(() -> binding.scrollView.scrollTo(0, savedScrollY));
         }
     }
 
@@ -702,13 +651,12 @@ public class MarkdownActivity extends AppCompatActivity {
         }
         Uri fileUri = intent.getData();
         String fileName = sanitizeFileName(intent.getStringExtra("file_name"));
-        if (fileName != null && tvTitle != null) {
-            tvTitle.setText(fileName);
-        } else if (fileUri != null && tvTitle != null) {
-            tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
+        if (fileName != null) {
+            binding.tvTitle.setText(fileName);
+        } else if (fileUri != null) {
+            binding.tvTitle.setText(FileUtils.getDisplayName(this, fileUri));
         }
         if (fileUri != null) {
-            // 清除旧内容
             viewModel.clear();
             if (searchHelper != null) searchHelper.clearHighlights();
             loadMarkdownFromUri(fileUri);

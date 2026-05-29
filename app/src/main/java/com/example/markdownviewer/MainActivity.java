@@ -3,25 +3,20 @@ package com.example.markdownviewer;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
-import android.widget.FrameLayout;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.markdownviewer.databinding.ActivityMainBinding;
 
 import java.util.List;
 
-import eightbitlab.com.blurview.BlurView;
-
 public class MainActivity extends AppCompatActivity {
 
-    private RecyclerView recyclerRecentFiles;
+    private ActivityMainBinding binding;
     private RecentFileAdapter recentFileAdapter;
-    private BlurView blurView;
-    private FrameLayout backgroundContainer;
 
     private final ActivityResultLauncher<Intent> openFileLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -44,29 +39,26 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
-        SystemBarUtils.applyInsetsToMargins(findViewById(R.id.btn_about), true, false);
+        SystemBarUtils.applyInsetsToMargins(binding.btnAbout, true, false);
 
-        blurView = findViewById(R.id.blur_view);
-        backgroundContainer = findViewById(R.id.background_container);
-        BlurHelper.setup(this, blurView);
+        BlurHelper.setup(this, binding.blurView);
 
-        recyclerRecentFiles = findViewById(R.id.recycler_recent_files);
-        recyclerRecentFiles.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerRecentFiles.setLayoutManager(new LinearLayoutManager(this));
         recentFileAdapter = new RecentFileAdapter(this::onRecentFileClick);
-        recyclerRecentFiles.setAdapter(recentFileAdapter);
+        binding.recyclerRecentFiles.setAdapter(recentFileAdapter);
 
-        findViewById(R.id.btn_open_file).setOnClickListener(v -> openFilePicker());
-        findViewById(R.id.btn_browse).setOnClickListener(v ->
+        binding.btnOpenFile.setOnClickListener(v -> openFilePicker());
+        binding.btnBrowse.setOnClickListener(v ->
                 startActivity(new Intent(this, FilePickerActivity.class)));
-        findViewById(R.id.btn_about).setOnClickListener(v ->
+        binding.btnAbout.setOnClickListener(v ->
                 startActivity(new Intent(this, AboutActivity.class)));
 
-        View btnClear = findViewById(R.id.btn_clear_recent);
-        if (btnClear != null) {
-            btnClear.setOnClickListener(v -> {
+        if (binding.btnClearRecent != null) {
+            binding.btnClearRecent.setOnClickListener(v -> {
                 RecentFilesManager.clear(this);
                 refreshRecentFiles();
             });
@@ -81,6 +73,12 @@ public class MainActivity extends AppCompatActivity {
         refreshRecentFiles();
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        binding = null;
+    }
+
     private void openFilePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -93,14 +91,13 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshRecentFiles() {
         List<RecentFilesManager.RecentEntry> list = RecentFilesManager.getRecentFiles(this);
-        View layoutHeader = findViewById(R.id.layout_recent_header);
         if (list.isEmpty()) {
-            recyclerRecentFiles.setVisibility(View.GONE);
-            if (layoutHeader != null) layoutHeader.setVisibility(View.GONE);
+            binding.recyclerRecentFiles.setVisibility(android.view.View.GONE);
+            if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.GONE);
             return;
         }
-        recyclerRecentFiles.setVisibility(View.VISIBLE);
-        if (layoutHeader != null) layoutHeader.setVisibility(View.VISIBLE);
+        binding.recyclerRecentFiles.setVisibility(android.view.View.VISIBLE);
+        if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.VISIBLE);
 
         recentFileAdapter.submitList(
                 RecentFilesManager.limitRecentFiles(list, Constants.MAX_RECENT_DISPLAY));

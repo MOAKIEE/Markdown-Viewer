@@ -71,6 +71,12 @@ public final class MarkwonFactory {
     private static final Pattern LATEX_PATTERN = Pattern.compile(
             "\\$\\$|\\\\\\(|\\\\\\[");
 
+    // 移除 script 和 style 标签及其内容
+    private static final Pattern SCRIPT_TAG_PATTERN = Pattern.compile(
+            "<script[^>]*>.*?</script>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern STYLE_TAG_PATTERN = Pattern.compile(
+            "<style[^>]*>.*?</style>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
     private MarkwonFactory() {}
 
     public static Markwon create(Context context, TextView textView, int themeMode) {
@@ -121,8 +127,10 @@ public final class MarkwonFactory {
     public static String sanitizeHtml(String content) {
         if (content == null) return null;
 
-        // 1. 先移除 HTML 注释、CDATA、DOCTYPE
-        String cleaned = HTML_COMMENT_PATTERN.matcher(content).replaceAll("");
+        // 1. 先移除 script/style 标签及其内容、HTML 注释、CDATA、DOCTYPE
+        String cleaned = SCRIPT_TAG_PATTERN.matcher(content).replaceAll("");
+        cleaned = STYLE_TAG_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = HTML_COMMENT_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = HTML_CDATA_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = HTML_DOCTYPE_PATTERN.matcher(cleaned).replaceAll("");
 

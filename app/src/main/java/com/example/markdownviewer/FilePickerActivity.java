@@ -1,6 +1,5 @@
 package com.example.markdownviewer;
 
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -8,19 +7,18 @@ import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.util.Log;
 import android.view.View;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.markdownviewer.databinding.ActivityFilePickerBinding;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,15 +30,10 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private static final String TAG = "FilePicker";
 
-    private RecyclerView recyclerView;
+    private ActivityFilePickerBinding binding;
     private FileAdapter fileAdapter;
     private Uri treeUri;
     private String currentPath;
-    private TextView tvPath;
-    private View emptyView;
-    private View progressBar;
-    private HorizontalScrollView scrollBreadcrumbs;
-    private LinearLayout layoutBreadcrumbs;
 
     private final ArrayList<String> mPathStack = new ArrayList<>();
     private final AtomicInteger loadGeneration = new AtomicInteger(0);
@@ -63,27 +56,21 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_file_picker);
+        binding = ActivityFilePickerBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
 
-        eightbitlab.com.blurview.BlurView blurView = findViewById(R.id.blur_view);
-        BlurHelper.setup(this, blurView);
+        BlurHelper.setup(this, binding.blurView);
 
-        tvPath = findViewById(R.id.tv_path);
-        findViewById(R.id.btn_back).setOnClickListener(v -> handleBack());
-        findViewById(R.id.btn_close).setOnClickListener(v -> finish());
+        binding.btnBack.setOnClickListener(v -> handleBack());
+        binding.btnClose.setOnClickListener(v -> finish());
 
-        recyclerView = findViewById(R.id.recycler_view);
-        emptyView = findViewById(R.id.empty_view);
-        progressBar = findViewById(R.id.progress_bar);
-        scrollBreadcrumbs = findViewById(R.id.scroll_breadcrumbs);
-        layoutBreadcrumbs = findViewById(R.id.layout_breadcrumbs);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
         fileAdapter = new FileAdapter(this);
-        recyclerView.setAdapter(fileAdapter);
+        binding.recyclerView.setAdapter(fileAdapter);
 
-        SystemBarUtils.applyInsetsToView(findViewById(R.id.toolbar_container), true, false);
+        SystemBarUtils.applyInsetsToView(binding.toolbarContainer, true, false);
 
         if (savedInstanceState != null && savedInstanceState.containsKey("tree_uri")) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -113,6 +100,12 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         outState.putStringArrayList("path_stack", mPathStack);
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        binding = null;
+    }
+
     private void openTreePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         UriPermissionUtils.addReadPersistableFlags(intent);
@@ -124,10 +117,10 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
     private void loadFilesAsync(Uri uri, String documentId) {
         currentPath = documentId;
-        tvPath.setText(extractDisplayName(documentId));
-        recyclerView.setVisibility(View.GONE);
-        emptyView.setVisibility(View.GONE);
-        progressBar.setVisibility(View.VISIBLE);
+        binding.tvPath.setText(extractDisplayName(documentId));
+        binding.recyclerView.setVisibility(View.GONE);
+        binding.emptyView.setVisibility(View.GONE);
+        binding.progressBar.setVisibility(View.VISIBLE);
 
         final int generation = loadGeneration.incrementAndGet();
 
@@ -179,20 +172,20 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 if (generation != loadGeneration.get()) return;
-                progressBar.setVisibility(View.GONE);
+                binding.progressBar.setVisibility(View.GONE);
                 if (fileItems.isEmpty()) {
-                    recyclerView.setVisibility(View.GONE);
-                    emptyView.setVisibility(View.VISIBLE);
+                    binding.recyclerView.setVisibility(View.GONE);
+                    binding.emptyView.setVisibility(View.VISIBLE);
                 } else {
-                    recyclerView.setAlpha(0f);
-                    recyclerView.setVisibility(View.VISIBLE);
-                    recyclerView.animate()
+                    binding.recyclerView.setAlpha(0f);
+                    binding.recyclerView.setVisibility(View.VISIBLE);
+                    binding.recyclerView.animate()
                             .alpha(1f)
                             .setDuration(Constants.ANIM_DURATION_APPEAR)
                             .setListener(null);
-                    emptyView.setVisibility(View.GONE);
+                    binding.emptyView.setVisibility(View.GONE);
                     fileAdapter.submitList(fileItems);
-                    recyclerView.scheduleLayoutAnimation();
+                    binding.recyclerView.scheduleLayoutAnimation();
                 }
                 updateBreadcrumbs();
             });
@@ -247,16 +240,16 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     }
 
     private void updateBreadcrumbs() {
-        if (layoutBreadcrumbs == null || scrollBreadcrumbs == null || treeUri == null) return;
+        if (binding.layoutBreadcrumbs == null || binding.scrollBreadcrumbs == null || treeUri == null) return;
 
         String rootDocId = DocumentsContract.getDocumentId(treeUri);
         if (mPathStack.isEmpty() && (currentPath == null || currentPath.equals(rootDocId))) {
-            scrollBreadcrumbs.setVisibility(View.GONE);
-            layoutBreadcrumbs.removeAllViews();
+            binding.scrollBreadcrumbs.setVisibility(View.GONE);
+            binding.layoutBreadcrumbs.removeAllViews();
             return;
         }
 
-        scrollBreadcrumbs.setVisibility(View.VISIBLE);
+        binding.scrollBreadcrumbs.setVisibility(View.VISIBLE);
         float scale = getResources().getDisplayMetrics().density;
 
         List<PathSegment> segments = new ArrayList<>();
@@ -274,10 +267,10 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         }
 
         int requiredChildCount = segments.size() * 2 - 1;
-        int existingChildCount = layoutBreadcrumbs.getChildCount();
+        int existingChildCount = binding.layoutBreadcrumbs.getChildCount();
 
         if (existingChildCount > requiredChildCount) {
-            layoutBreadcrumbs.removeViews(requiredChildCount, existingChildCount - requiredChildCount);
+            binding.layoutBreadcrumbs.removeViews(requiredChildCount, existingChildCount - requiredChildCount);
         }
 
         for (int i = 0; i < segments.size(); i++) {
@@ -287,8 +280,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             if (i > 0) {
                 int dividerIndex = childIndex - 1;
                 android.widget.ImageView ivDivider;
-                if (dividerIndex < existingChildCount && layoutBreadcrumbs.getChildAt(dividerIndex) instanceof android.widget.ImageView) {
-                    ivDivider = (android.widget.ImageView) layoutBreadcrumbs.getChildAt(dividerIndex);
+                if (dividerIndex < existingChildCount && binding.layoutBreadcrumbs.getChildAt(dividerIndex) instanceof android.widget.ImageView) {
+                    ivDivider = (android.widget.ImageView) binding.layoutBreadcrumbs.getChildAt(dividerIndex);
                 } else {
                     ivDivider = new android.widget.ImageView(this);
                     ivDivider.setImageResource(R.drawable.ic_chevron_right);
@@ -300,16 +293,16 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                     lp.leftMargin = (int) (4 * scale + 0.5f);
                     lp.rightMargin = (int) (4 * scale + 0.5f);
                     ivDivider.setLayoutParams(lp);
-                    if (dividerIndex < layoutBreadcrumbs.getChildCount()) {
-                        layoutBreadcrumbs.removeViewAt(dividerIndex);
+                    if (dividerIndex < binding.layoutBreadcrumbs.getChildCount()) {
+                        binding.layoutBreadcrumbs.removeViewAt(dividerIndex);
                     }
-                    layoutBreadcrumbs.addView(ivDivider, dividerIndex);
+                    binding.layoutBreadcrumbs.addView(ivDivider, dividerIndex);
                 }
             }
 
             TextView tvSegment;
-            if (childIndex < existingChildCount && layoutBreadcrumbs.getChildAt(childIndex) instanceof TextView) {
-                tvSegment = (TextView) layoutBreadcrumbs.getChildAt(childIndex);
+            if (childIndex < existingChildCount && binding.layoutBreadcrumbs.getChildAt(childIndex) instanceof TextView) {
+                tvSegment = (TextView) binding.layoutBreadcrumbs.getChildAt(childIndex);
             } else {
                 tvSegment = new TextView(this);
                 tvSegment.setTextSize(13);
@@ -324,10 +317,10 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
                 lpPill.leftMargin = (int) (2 * scale + 0.5f);
                 lpPill.rightMargin = (int) (2 * scale + 0.5f);
                 tvSegment.setLayoutParams(lpPill);
-                if (childIndex < layoutBreadcrumbs.getChildCount()) {
-                    layoutBreadcrumbs.removeViewAt(childIndex);
+                if (childIndex < binding.layoutBreadcrumbs.getChildCount()) {
+                    binding.layoutBreadcrumbs.removeViewAt(childIndex);
                 }
-                layoutBreadcrumbs.addView(tvSegment, childIndex);
+                binding.layoutBreadcrumbs.addView(tvSegment, childIndex);
             }
 
             tvSegment.setText(segment.name);
@@ -359,7 +352,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             }
         }
 
-        scrollBreadcrumbs.post(() -> scrollBreadcrumbs.fullScroll(View.FOCUS_RIGHT));
+        binding.scrollBreadcrumbs.post(() -> binding.scrollBreadcrumbs.fullScroll(View.FOCUS_RIGHT));
     }
 
     private static class PathSegment {

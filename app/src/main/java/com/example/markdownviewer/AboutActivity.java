@@ -3,35 +3,42 @@ package com.example.markdownviewer;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import eightbitlab.com.blurview.BlurView;
+import com.example.markdownviewer.databinding.ActivityAboutBinding;
 
 public class AboutActivity extends AppCompatActivity {
+
+    private ActivityAboutBinding binding;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_about);
+        binding = ActivityAboutBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         SystemBarUtils.applySystemBarsForCurrentTheme(getWindow(), this);
-        SystemBarUtils.applyInsetsToView(findViewById(R.id.top_bar), true, false);
+        SystemBarUtils.applyInsetsToView(binding.topBar, true, false);
 
-        BlurView blurView = findViewById(R.id.blur_view);
-        BlurHelper.setup(this, blurView);
+        BlurHelper.setup(this, binding.blurView);
 
-        findViewById(R.id.btn_back).setOnClickListener(v -> finish());
+        binding.btnBack.setOnClickListener(v -> finish());
 
-        TextView tvVersion = findViewById(R.id.tv_version);
         try {
             String versionName = getPackageManager()
                     .getPackageInfo(getPackageName(), 0).versionName;
-            tvVersion.setText(getString(R.string.about_version, versionName));
+            binding.tvVersion.setText(getString(R.string.about_version, versionName));
         } catch (PackageManager.NameNotFoundException e) {
             Log.w("AboutActivity", "Failed to get package info", e);
-            tvVersion.setText(getString(R.string.about_version, "?"));
+            binding.tvVersion.setText(getString(R.string.about_version, "?"));
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        binding = null;
     }
 }

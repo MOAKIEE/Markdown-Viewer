@@ -1,6 +1,8 @@
 package com.example.markdownviewer;
 
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -27,7 +29,8 @@ public class AboutActivity extends AppCompatActivity {
             String versionName = getPackageManager()
                     .getPackageInfo(getPackageName(), 0).versionName;
             tvVersion.setText(getString(R.string.about_version, versionName));
-        } catch (Exception e) {
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w("AboutActivity", "Failed to get package info", e);
             tvVersion.setText(getString(R.string.about_version, "?"));
         }
     }

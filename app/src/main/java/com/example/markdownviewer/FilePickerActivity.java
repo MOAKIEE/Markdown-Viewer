@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FilePickerActivity extends AppCompatActivity implements FileAdapter.OnFileClickListener {
 
@@ -42,7 +43,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     private LinearLayout layoutBreadcrumbs;
 
     private final ArrayList<String> mPathStack = new ArrayList<>();
-    private volatile int loadGeneration = 0;
+    private final AtomicInteger loadGeneration = new AtomicInteger(0);
 
     private final ActivityResultLauncher<Intent> treePickerLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -128,7 +129,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         emptyView.setVisibility(View.GONE);
         progressBar.setVisibility(View.VISIBLE);
 
-        final int generation = ++loadGeneration;
+        final int generation = loadGeneration.incrementAndGet();
 
         AppExecutor.getInstance().diskIO().execute(() -> {
             List<FileItem> fileItems = new ArrayList<>();
@@ -177,7 +178,7 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
 
             AppExecutor.getInstance().mainThread().post(() -> {
                 if (isFinishing() || isDestroyed()) return;
-                if (generation != loadGeneration) return;
+                if (generation != loadGeneration.get()) return;
                 progressBar.setVisibility(View.GONE);
                 if (fileItems.isEmpty()) {
                     recyclerView.setVisibility(View.GONE);
@@ -362,9 +363,9 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
     }
 
     private static class PathSegment {
-        final String name;
-        final String docId;
-        final int stackIndex;
+        private final String name;
+        private final String docId;
+        private final int stackIndex;
         PathSegment(String name, String docId, int stackIndex) {
             this.name = name;
             this.docId = docId;

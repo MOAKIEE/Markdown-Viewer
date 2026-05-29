@@ -12,6 +12,8 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.util.Objects;
+
 public class FileAdapter extends ListAdapter<FileItem, FileAdapter.FileViewHolder> {
 
     private final OnFileClickListener listener;
@@ -20,8 +22,7 @@ public class FileAdapter extends ListAdapter<FileItem, FileAdapter.FileViewHolde
             new DiffUtil.ItemCallback<FileItem>() {
                 @Override
                 public boolean areItemsTheSame(@NonNull FileItem oldItem, @NonNull FileItem newItem) {
-                    return oldItem.getDocumentId() != null
-                            && oldItem.getDocumentId().equals(newItem.getDocumentId());
+                    return Objects.equals(oldItem.getDocumentId(), newItem.getDocumentId());
                 }
 
                 @Override

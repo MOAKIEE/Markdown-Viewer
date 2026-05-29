@@ -150,7 +150,9 @@ public class RecentFilesManager {
                 obj.put(JSON_KEY_URI, entry.uri);
                 obj.put(JSON_KEY_NAME, entry.name);
                 obj.put(JSON_KEY_SCROLL_Y, entry.scrollY);
-            } catch (JSONException ignored) {}
+            } catch (JSONException e) {
+                Log.w(TAG, "Failed to serialize recent entry", e);
+            }
             arr.put(obj);
         }
         sCache = new ArrayList<>(list);
@@ -171,6 +173,21 @@ public class RecentFilesManager {
             this.uri = uri;
             this.name = name;
             this.scrollY = scrollY;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RecentEntry that = (RecentEntry) o;
+            return scrollY == that.scrollY &&
+                    java.util.Objects.equals(uri, that.uri) &&
+                    java.util.Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(uri, name, scrollY);
         }
     }
 }

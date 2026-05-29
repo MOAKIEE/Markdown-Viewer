@@ -43,13 +43,26 @@ public final class TocParser {
         return entries;
     }
 
-    private static boolean isFence(String trimmedLine) {
-        if (trimmedLine.length() < 3) return false;
-        char c = trimmedLine.charAt(0);
+    private static boolean isFence(String line) {
+        // 支持最多3个前导空格的缩进代码块
+        String trimmed = line;
+        int leadingSpaces = 0;
+        for (int i = 0; i < line.length() && i < 4; i++) {
+            if (line.charAt(i) == ' ') {
+                leadingSpaces++;
+                trimmed = line.substring(i + 1);
+            } else {
+                break;
+            }
+        }
+        if (leadingSpaces > 3) return false;
+
+        if (trimmed.length() < 3) return false;
+        char c = trimmed.charAt(0);
         if (c != '`' && c != '~') return false;
         int count = 0;
-        for (int i = 0; i < trimmedLine.length(); i++) {
-            if (trimmedLine.charAt(i) == c) count++;
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (trimmed.charAt(i) == c) count++;
             else break;
         }
         return count >= 3;

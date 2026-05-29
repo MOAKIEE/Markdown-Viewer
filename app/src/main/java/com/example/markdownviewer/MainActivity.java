@@ -28,7 +28,10 @@ public class MainActivity extends AppCompatActivity {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                     Uri uri = result.getData().getData();
                     if (uri != null) {
-                        UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
+                        boolean hasPermission = UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
+                        if (!hasPermission) {
+                            android.widget.Toast.makeText(this, R.string.error_no_permission, android.widget.Toast.LENGTH_SHORT).show();
+                        }
                         RecentFilesManager.addRecentFile(this, uri);
                         Intent intent = new Intent(this, MarkdownActivity.class);
                         intent.setData(uri);
@@ -106,7 +109,10 @@ public class MainActivity extends AppCompatActivity {
     private void onRecentFileClick(RecentFilesManager.RecentEntry entry) {
         try {
             Uri uri = Uri.parse(entry.uri);
-            UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
+            boolean hasPermission = UriPermissionUtils.takeReadPermission(getContentResolver(), uri);
+            if (!hasPermission) {
+                android.widget.Toast.makeText(this, R.string.error_no_permission, android.widget.Toast.LENGTH_SHORT).show();
+            }
             Intent intent = new Intent(this, MarkdownActivity.class);
             intent.setData(uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

@@ -10,8 +10,13 @@ import eightbitlab.com.blurview.RenderScriptBlur;
 
 public final class BlurHelper {
 
+    /** 模糊半径，单位 dp */
     private static final float BLUR_RADIUS = 20f;
+
+    /** 浅色主题下模糊叠加颜色：白色 40% 不透明度 (ARGB: 0x66FFFFFF) */
     private static final int OVERLAY_COLOR_LIGHT = 0x66FFFFFF;
+    /** 深色主题下模糊叠加颜色：黑色 40% 不透明度 (ARGB: 0x66000000) */
+    private static final int OVERLAY_COLOR_DARK = 0x66000000;
 
     public static void setup(Context context, BlurView blurView) {
         if (blurView == null) return;
@@ -20,9 +25,9 @@ public final class BlurHelper {
 
         boolean dark = (context.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                 == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        int overlayColor = dark ? 0x66000000 : OVERLAY_COLOR_LIGHT;
+        int overlayColor = dark ? OVERLAY_COLOR_DARK : OVERLAY_COLOR_LIGHT;
 
-        // 低端设备降级：Android Go / 低内存设备跳过实时模糊
+        // 低端设备降级：低内存设备跳过实时模糊以避免性能问题
         if (shouldSkipBlur(context)) {
             blurView.setOverlayColor(overlayColor);
             return;
@@ -40,11 +45,10 @@ public final class BlurHelper {
     }
 
     private static boolean shouldSkipBlur(Context context) {
-        // Android Go 或低内存设备直接跳过实时模糊以避免性能问题
+        // 低内存设备直接跳过实时模糊以避免性能问题
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             android.app.ActivityManager am = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-            return context.getPackageManager().isInstantApp()
-                    || (am != null && am.isLowRamDevice());
+            return am != null && am.isLowRamDevice();
         }
         return false;
     }

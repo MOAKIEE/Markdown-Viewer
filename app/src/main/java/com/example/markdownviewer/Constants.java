@@ -12,6 +12,11 @@ public final class Constants {
     public static final float LINE_SPACING_DEFAULT = 1.3f;
     public static final String PREFS_READER_CONFIG = "reader_config";
 
+    // SharedPreferences keys for reader config
+    public static final String KEY_THEME_MODE = "theme_mode";
+    public static final String KEY_FONT_SIZE = "font_size";
+    public static final String KEY_LINE_SPACING = "line_spacing";
+
     // Animation
     public static final int ANIM_DURATION_FADE = 200;
     public static final int ANIM_DURATION_APPEAR = 250;

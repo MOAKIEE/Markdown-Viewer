@@ -35,6 +35,7 @@
     <string name="error_read_failed">读取文件失败</string>
     <string name="error_open_failed">无法打开文件</string>
     <string name="error_unsupported_source">不支持的文件来源</string>
+    <string name="error_no_permission">无法获取文件访问权限，请重新选择文件</string>
 
     <string name="toc_empty">未检测到标题</string>
 

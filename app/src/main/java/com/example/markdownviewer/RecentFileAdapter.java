@@ -11,6 +11,8 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.util.Objects;
+
 public class RecentFileAdapter extends ListAdapter<RecentFilesManager.RecentEntry, RecentFileAdapter.ViewHolder> {
 
     private final OnRecentClickListener listener;
@@ -26,7 +28,7 @@ public class RecentFileAdapter extends ListAdapter<RecentFilesManager.RecentEntr
                 @Override
                 public boolean areContentsTheSame(@NonNull RecentFilesManager.RecentEntry oldItem,
                                                    @NonNull RecentFilesManager.RecentEntry newItem) {
-                    return oldItem.name != null && oldItem.name.equals(newItem.name)
+                    return Objects.equals(oldItem.name, newItem.name)
                             && oldItem.scrollY == newItem.scrollY;
                 }
             };

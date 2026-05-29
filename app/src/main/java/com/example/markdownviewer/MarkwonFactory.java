@@ -22,29 +22,54 @@ import java.util.regex.Pattern;
 public final class MarkwonFactory {
 
     private static final String SAFE_TAGS =
-            "p|br|hr|div|span|pre|code|blockquote|details|summary|"
+            "p|br|hr|div|span|pre|code|blockquote|"
                     + "h[1-6]|ul|ol|li|dl|dt|dd|"
-                    + "a|img|figure|figcaption|picture|source|"
+                    + "a|img|figure|figcaption|"
                     + "b|strong|i|em|u|s|del|ins|mark|small|sub|sup|abbr|"
                     + "table|thead|tbody|tfoot|tr|th|td|col|colgroup|caption|"
-                    + "kbd|samp|var|ruby|rt|rp|wbr";
+                    + "kbd|samp|var|wbr";
 
     private static final Pattern HTML_TAG_PATTERN = Pattern.compile(
             "<(/?)\\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>",
             Pattern.DOTALL);
 
+    // HTML 注释、CDATA、DOCTYPE — 直接移除
+    private static final Pattern HTML_COMMENT_PATTERN = Pattern.compile(
+            "<!--.*?-->", Pattern.DOTALL);
+    private static final Pattern HTML_CDATA_PATTERN = Pattern.compile(
+            "<!\\[CDATA\\[.*?\\]\\]>", Pattern.DOTALL);
+    private static final Pattern HTML_DOCTYPE_PATTERN = Pattern.compile(
+            "<!DOCTYPE[^>]*>", Pattern.CASE_INSENSITIVE);
+
+    // 事件处理器：支持原始形式和 HTML 实体编码（如 &#111;&#110; = on）
     private static final Pattern EVENT_HANDLER_PATTERN = Pattern.compile(
-            "\\s+on[a-zA-Z]+\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
+            "\\s+(?:on|&#(?:111|79);&#(?:110|78);|&#x(?:6f|4f);&#x(?:6e|4e);)[a-zA-Z]+\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
             Pattern.CASE_INSENSITIVE);
 
+    // 危险 URL 协议：javascript, vbscript, data, file
     private static final Pattern DANGEROUS_URL_PATTERN = Pattern.compile(
-            "(href|src|action|formaction|xlink:href)\\s*=\\s*"
-                    + "(?:\"\\s*(?:javascript|vbscript|data)\\s*:[^\"]*\""
-                    + "|'\\s*(?:javascript|vbscript|data)\\s*:[^']*'"
-                    + "|\\s*(?:javascript|vbscript|data)\\s*:[^\\s>]*)",
+            "(href|src|action|formaction|xlink:href|background)\\s*=\\s*"
+                    + "(?:\"\\s*(?:javascript|vbscript|data|file)\\s*:([^\"]*)\""
+                    + "|'\\s*(?:javascript|vbscript|data|file)\\s*:([^']*)'"
+                    + "|\\s*(?:javascript|vbscript|data|file)\\s*:([^\\s>]\\S*))",
+            Pattern.CASE_INSENSITIVE);
+
+    // style 属性中的危险 CSS（expression, behavior, javascript, moz-binding）
+    private static final Pattern DANGEROUS_STYLE_PATTERN = Pattern.compile(
+            "\\s+style\\s*=\\s*(?:\"[^\"]*(?:expression|behavior|javascript|moz-binding)[^\"]*\""
+                    + "|'[^']*(?:expression|behavior|javascript|moz-binding)[^']*'"
+                    + "|[^\\s>]*(?:expression|behavior|javascript|moz-binding)[^\\s>]*)",
+            Pattern.CASE_INSENSITIVE);
+
+    // 危险属性：target, download, ping（保留 rel 用于 nofollow 等安全用途，但清理危险值）
+    private static final Pattern DANGEROUS_ATTRS_PATTERN = Pattern.compile(
+            "\\s+(?:target|download|ping)\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s>]*)",
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern SAFE_TAG_NAMES = Pattern.compile(SAFE_TAGS, Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern LATEX_PATTERN = Pattern.compile(
+            "\\$\\$|\\\\\\(|\\\\\\[");
 
     private MarkwonFactory() {}
 
@@ -90,27 +115,40 @@ public final class MarkwonFactory {
 
     public static boolean contentNeedsLatex(String content) {
         if (content == null) return false;
-        return content.contains("$$") || content.contains("\\(") || content.contains("\\[");
+        return LATEX_PATTERN.matcher(content).find();
     }
 
     public static String sanitizeHtml(String content) {
         if (content == null) return null;
-        Matcher matcher = HTML_TAG_PATTERN.matcher(content);
-        StringBuilder sb = new StringBuilder(content.length());
+
+        // 1. 先移除 HTML 注释、CDATA、DOCTYPE
+        String cleaned = HTML_COMMENT_PATTERN.matcher(content).replaceAll("");
+        cleaned = HTML_CDATA_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = HTML_DOCTYPE_PATTERN.matcher(cleaned).replaceAll("");
+
+        // 2. 逐标签白名单过滤
+        Matcher matcher = HTML_TAG_PATTERN.matcher(cleaned);
+        StringBuilder sb = new StringBuilder(cleaned.length());
         while (matcher.find()) {
             String tagName = matcher.group(2);
             if (SAFE_TAG_NAMES.matcher(tagName).matches()) {
                 String prefix = matcher.group(1);
                 if (!prefix.isEmpty()) {
+                    // 结束标签：标准化为简单形式
                     matcher.appendReplacement(sb, Matcher.quoteReplacement(
-                            "</" + tagName + ">"));
+                            "</" + tagName.toLowerCase() + ">"));
                 } else {
-                    String attrs = EVENT_HANDLER_PATTERN.matcher(matcher.group(3)).replaceAll("");
+                    // 开始标签：清理危险属性
+                    String attrs = matcher.group(3);
+                    attrs = EVENT_HANDLER_PATTERN.matcher(attrs).replaceAll("");
+                    attrs = DANGEROUS_STYLE_PATTERN.matcher(attrs).replaceAll("");
+                    attrs = DANGEROUS_ATTRS_PATTERN.matcher(attrs).replaceAll("");
                     attrs = DANGEROUS_URL_PATTERN.matcher(attrs).replaceAll("$1=\"#blocked\"");
                     matcher.appendReplacement(sb, Matcher.quoteReplacement(
-                            "<" + tagName + attrs + ">"));
+                            "<" + tagName.toLowerCase() + attrs + ">"));
                 }
             } else {
+                // 非白名单标签：直接移除
                 matcher.appendReplacement(sb, "");
             }
         }

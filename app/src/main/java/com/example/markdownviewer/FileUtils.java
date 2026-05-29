@@ -23,8 +23,8 @@ public class FileUtils {
                         if (!TextUtils.isEmpty(name)) return name;
                     }
                 }
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to query display name", e);
+            } catch (SecurityException | IllegalArgumentException e) {
+                Log.w(TAG, "Failed to query display name for uri: " + uri, e);
             }
         }
 

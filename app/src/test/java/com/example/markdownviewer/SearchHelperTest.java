@@ -12,6 +12,10 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
@@ -154,5 +158,16 @@ public class SearchHelperTest {
         helper.attachToEditText();
         helper.destroy();
         // Should not throw
+    }
+
+    @Test
+    public void performSearch_discardsStaleBackgroundResultsByGeneration() throws Exception {
+        String source = new String(Files.readAllBytes(Paths.get(
+                "src/main/java/com/example/markdownviewer/SearchHelper.java")),
+                StandardCharsets.UTF_8);
+
+        assertTrue(source.contains("searchGeneration"));
+        assertTrue(source.contains("final int generation"));
+        assertTrue(source.contains("generation != searchGeneration.get()"));
     }
 }

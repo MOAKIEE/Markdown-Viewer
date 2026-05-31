@@ -10,10 +10,9 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -115,21 +114,13 @@ public final class MarkdownRepository {
             return LoadResult.failure("File too large");
         }
 
-        // 读取内容
-        StringBuilder content = new StringBuilder();
-        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-            if (is == null) {
-                return LoadResult.failure("Failed to open file");
-            }
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (cancelled.get()) {
-                        return LoadResult.failure("Cancelled");
-                    }
-                    content.append(line).append("\n");
-                }
+        String rawContent;
+        try {
+            rawContent = readContentWithLimit(context, uri, cancelled);
+            if (rawContent == null) {
+                return cancelled.get()
+                        ? LoadResult.failure("Cancelled")
+                        : LoadResult.failure("File too large");
             }
         } catch (IOException e) {
             Log.e(TAG, "Failed to read file", e);
@@ -137,7 +128,7 @@ public final class MarkdownRepository {
         }
 
         // 清理 HTML
-        String markdown = MarkwonFactory.sanitizeHtml(content.toString());
+        String markdown = MarkwonFactory.sanitizeHtml(rawContent);
         if (markdown == null) markdown = "";
 
         // 解析目录
@@ -161,22 +152,38 @@ public final class MarkdownRepository {
                                        @NonNull AtomicBoolean cancelled) {
         if (!"content".equals(uri.getScheme())) return null;
 
-        StringBuilder content = new StringBuilder();
-        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-            if (is == null) return null;
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (cancelled.get()) return null;
-                    content.append(line).append("\n");
-                }
-            }
+        try {
+            String content = readContentWithLimit(context, uri, cancelled);
+            if (content == null) return null;
+            return MarkwonFactory.sanitizeHtml(content);
         } catch (IOException e) {
             Log.e(TAG, "Failed to read file", e);
             return null;
         }
-        return MarkwonFactory.sanitizeHtml(content.toString());
+    }
+
+    @Nullable
+    private static String readContentWithLimit(@NonNull Context context, @NonNull Uri uri,
+                                               @NonNull AtomicBoolean cancelled) throws IOException {
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null) {
+                throw new IOException("Failed to open file");
+            }
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            long totalBytes = 0;
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                if (cancelled.get()) return null;
+                totalBytes += read;
+                if (totalBytes > Constants.MAX_FILE_SIZE) {
+                    return null;
+                }
+                output.write(buffer, 0, read);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        }
     }
 
     public interface LoadCallback {

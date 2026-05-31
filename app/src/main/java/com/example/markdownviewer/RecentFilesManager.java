@@ -14,6 +14,14 @@ public class RecentFilesManager {
 
     private static final Object sLock = new Object();
 
+    public interface RecentFilesCallback {
+        void onResult(List<RecentEntry> entries);
+    }
+
+    public interface ScrollYCallback {
+        void onResult(int scrollY);
+    }
+
     /**
      * 获取最近文件列表（同步读取，线程安全）。
      */
@@ -27,6 +35,14 @@ public class RecentFilesManager {
             }
             return result;
         }
+    }
+
+    public static void getRecentFilesAsync(Context context, RecentFilesCallback callback) {
+        if (context == null || callback == null) return;
+        AppExecutor.getInstance().diskIO().execute(() -> {
+            List<RecentEntry> entries = getRecentFiles(context.getApplicationContext());
+            AppExecutor.getInstance().mainThread().post(() -> callback.onResult(entries));
+        });
     }
 
     /**
@@ -74,6 +90,14 @@ public class RecentFilesManager {
             RecentFileEntity entity = dao.getByUri(uri.toString());
             return entity != null ? entity.getScrollY() : 0;
         }
+    }
+
+    public static void getScrollYAsync(Context context, Uri uri, ScrollYCallback callback) {
+        if (context == null || callback == null) return;
+        AppExecutor.getInstance().diskIO().execute(() -> {
+            int scrollY = getScrollY(context.getApplicationContext(), uri);
+            AppExecutor.getInstance().mainThread().post(() -> callback.onResult(scrollY));
+        });
     }
 
     static List<RecentEntry> limitRecentFiles(List<RecentEntry> entries, int maxCount) {

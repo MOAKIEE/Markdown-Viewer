@@ -16,10 +16,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ProgressBar;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -55,6 +53,7 @@ public class MarkdownActivity extends AppCompatActivity {
     private boolean cachedMarkwonLatex = false;
     private MarkdownViewModel viewModel;
     private final AtomicBoolean loadCancelled = new AtomicBoolean(false);
+    private int loadGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +72,8 @@ public class MarkdownActivity extends AppCompatActivity {
 
         readerPrefs = getSharedPreferences(Constants.PREFS_READER_CONFIG, MODE_PRIVATE);
         currentThemeMode = readerPrefs.getInt(Constants.KEY_THEME_MODE, ReaderTheme.MODE_CLASSIC);
+        viewModel = new ViewModelProvider(this).get(MarkdownViewModel.class);
+        observeViewModel();
 
         int savedFontSize = readerPrefs.getInt(Constants.KEY_FONT_SIZE, Constants.FONT_SIZE_DEFAULT);
         binding.markdownText.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedFontSize);
@@ -116,9 +117,6 @@ public class MarkdownActivity extends AppCompatActivity {
                 }
             }
         });
-
-        viewModel = new ViewModelProvider(this).get(MarkdownViewModel.class);
-        observeViewModel();
 
         Uri fileUri = getIntent().getData();
         String fileName = sanitizeFileName(getIntent().getStringExtra("file_name"));
@@ -576,11 +574,12 @@ public class MarkdownActivity extends AppCompatActivity {
             return;
         }
 
+        final int generation = ++loadGeneration;
         loadCancelled.set(false);
         viewModel.setFileUri(uri);
         viewModel.setIsLoading(true);
         viewModel.setErrorMessage(null);
-        savedScrollY = RecentFilesManager.getScrollY(this, uri);
+        savedScrollY = 0;
 
         showLoadingState();
 
@@ -588,9 +587,16 @@ public class MarkdownActivity extends AppCompatActivity {
         cachedMarkwonTheme = currentThemeMode;
         cachedMarkwonLatex = false;
 
+        RecentFilesManager.getScrollYAsync(this, uri, scrollY -> {
+            if (!loadCancelled.get() && generation == loadGeneration) {
+                savedScrollY = scrollY;
+                restoreSavedScroll();
+            }
+        });
+
         MarkdownRepository.loadMarkdownAsync(this, uri, markwon,
                 result -> {
-                    if (isFinishing() || isDestroyed()) return;
+                    if (isFinishing() || isDestroyed() || generation != loadGeneration) return;
                     viewModel.setIsLoading(false);
 
                     if (!result.success) {
@@ -637,8 +643,16 @@ public class MarkdownActivity extends AppCompatActivity {
         binding.scrollView.animate().alpha(1f).setDuration(Constants.ANIM_DURATION_APPEAR).setListener(null);
 
         if (savedScrollY > 0) {
-            binding.scrollView.post(() -> binding.scrollView.scrollTo(0, savedScrollY));
+            restoreSavedScroll();
         }
+    }
+
+    private void restoreSavedScroll() {
+        if (savedScrollY <= 0 || binding == null) return;
+        binding.scrollView.post(() -> {
+            if (isFinishing() || isDestroyed() || binding == null) return;
+            binding.scrollView.scrollTo(0, savedScrollY);
+        });
     }
 
     @Override

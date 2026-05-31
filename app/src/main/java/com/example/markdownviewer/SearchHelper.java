@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,6 +34,7 @@ public final class SearchHelper {
     private int highlightColor;
     private int currentHighlightColor;
     private final AtomicBoolean isSearching = new AtomicBoolean(false);
+    private final AtomicInteger searchGeneration = new AtomicInteger(0);
 
     private final TextWatcher textWatcher;
 
@@ -86,12 +88,13 @@ public final class SearchHelper {
 
         // 取消之前的搜索
         isSearching.set(true);
+        final int generation = searchGeneration.incrementAndGet();
         final String finalQuery = query;
         final String src = text.toString();
 
         // 在后台线程执行搜索
         AppExecutor.getInstance().diskIO().execute(() -> {
-            if (!isSearching.get()) return;
+            if (!isSearching.get() || generation != searchGeneration.get()) return;
 
             List<int[]> resultMatches = new ArrayList<>();
             try {
@@ -113,7 +116,7 @@ public final class SearchHelper {
 
             final List<int[]> finalMatches = resultMatches;
             AppExecutor.getInstance().mainThread().post(() -> {
-                if (!isSearching.get()) return;
+                if (!isSearching.get() || generation != searchGeneration.get()) return;
                 TextView tv = textViewRef.get();
                 if (tv == null) return;
 
@@ -150,6 +153,7 @@ public final class SearchHelper {
     }
 
     public void clearHighlights() {
+        searchGeneration.incrementAndGet();
         clearHighlightSpans();
         matches.clear();
         currentMatch = -1;
@@ -164,6 +168,7 @@ public final class SearchHelper {
 
     public void destroy() {
         isSearching.set(false);
+        searchGeneration.incrementAndGet();
         if (pendingSearch != null) handler.removeCallbacks(pendingSearch);
         EditText etSearch = etSearchRef.get();
         if (etSearch != null) {

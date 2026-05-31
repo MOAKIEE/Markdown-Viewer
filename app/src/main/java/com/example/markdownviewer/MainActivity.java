@@ -18,6 +18,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ActivityMainBinding binding;
     private RecentFileAdapter recentFileAdapter;
+    private int recentLoadGeneration = 0;
 
     private final ActivityResultLauncher<Intent> openFileLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -92,17 +93,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRecentFiles() {
-        List<RecentFilesManager.RecentEntry> list = RecentFilesManager.getRecentFiles(this);
-        if (list.isEmpty()) {
-            binding.recyclerRecentFiles.setVisibility(android.view.View.GONE);
-            if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.GONE);
-            return;
-        }
-        binding.recyclerRecentFiles.setVisibility(android.view.View.VISIBLE);
-        if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.VISIBLE);
+        final int generation = ++recentLoadGeneration;
+        RecentFilesManager.getRecentFilesAsync(this, list -> {
+            if (isFinishing() || isDestroyed() || binding == null) return;
+            if (generation != recentLoadGeneration) return;
+            if (list.isEmpty()) {
+                binding.recyclerRecentFiles.setVisibility(android.view.View.GONE);
+                if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.GONE);
+                return;
+            }
+            binding.recyclerRecentFiles.setVisibility(android.view.View.VISIBLE);
+            if (binding.layoutRecentHeader != null) binding.layoutRecentHeader.setVisibility(android.view.View.VISIBLE);
 
-        recentFileAdapter.submitList(
-                RecentFilesManager.limitRecentFiles(list, Constants.MAX_RECENT_DISPLAY));
+            recentFileAdapter.submitList(
+                    RecentFilesManager.limitRecentFiles(list, Constants.MAX_RECENT_DISPLAY));
+        });
     }
 
     private void onRecentFileClick(RecentFilesManager.RecentEntry entry) {

@@ -23,7 +23,9 @@ public abstract class AppDatabase extends RoomDatabase {
                                     context.getApplicationContext(),
                                     AppDatabase.class,
                                     DB_NAME)
-                            .fallbackToDestructiveMigration()
+                            // 仅在降级（如回滚到旧版本）时清表；升级强制显式 Migration，
+                            // 避免未来加字段时静默丢失用户最近文件与阅读进度。
+                            .fallbackToDestructiveMigrationOnDowngrade()
                             .build();
                 }
             }

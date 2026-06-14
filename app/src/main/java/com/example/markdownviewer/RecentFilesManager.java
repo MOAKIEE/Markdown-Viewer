@@ -47,17 +47,22 @@ public class RecentFilesManager {
 
     /**
      * 添加或更新最近文件记录。写操作在后台线程执行。
+     * 已存在的记录通过 {@link RecentFileDao#touchTimestamp} 原子刷新时间与名称，
+     * 保留既有 scrollY，避免先查后写导致的 TOCTOU 丢失阅读进度。
      */
     public static void addRecentFile(Context context, Uri uri) {
         if (uri == null) return;
+        Context appContext = context.getApplicationContext();
         String uriString = uri.toString();
-        String displayName = FileUtils.getDisplayName(context, uri);
+        String displayName = FileUtils.getDisplayName(appContext, uri);
 
         AppExecutor.getInstance().diskIO().execute(() -> {
-            RecentFileDao dao = AppDatabase.getInstance(context).recentFileDao();
-            RecentFileEntity existing = dao.getByUri(uriString);
-            int scrollY = existing != null ? existing.getScrollY() : 0;
-            dao.insert(new RecentFileEntity(uriString, displayName, scrollY, System.currentTimeMillis()));
+            RecentFileDao dao = AppDatabase.getInstance(appContext).recentFileDao();
+            long now = System.currentTimeMillis();
+            // 原子刷新；若记录不存在则新建
+            if (dao.touchTimestamp(uriString, displayName, now) == 0) {
+                dao.insert(new RecentFileEntity(uriString, displayName, 0, now));
+            }
 
             // 限制最大记录数
             if (dao.getCount() > Constants.MAX_RECENT) {
@@ -71,10 +76,11 @@ public class RecentFilesManager {
      */
     public static void updateScrollY(Context context, Uri uri, int scrollY) {
         if (uri == null) return;
+        Context appContext = context.getApplicationContext();
         String uriString = uri.toString();
 
         AppExecutor.getInstance().diskIO().execute(() -> {
-            RecentFileDao dao = AppDatabase.getInstance(context).recentFileDao();
+            RecentFileDao dao = AppDatabase.getInstance(appContext).recentFileDao();
             RecentFileEntity existing = dao.getByUri(uriString);
             if (existing != null && existing.getScrollY() != scrollY) {
                 existing.setScrollY(scrollY);
@@ -109,15 +115,17 @@ public class RecentFilesManager {
     }
 
     public static void clear(Context context) {
+        Context appContext = context.getApplicationContext();
         AppExecutor.getInstance().diskIO().execute(() -> {
-            AppDatabase.getInstance(context).recentFileDao().deleteAll();
+            AppDatabase.getInstance(appContext).recentFileDao().deleteAll();
         });
     }
 
     public static void removeRecentFile(Context context, String uriString) {
         if (uriString == null) return;
+        Context appContext = context.getApplicationContext();
         AppExecutor.getInstance().diskIO().execute(() -> {
-            AppDatabase.getInstance(context).recentFileDao().deleteByUri(uriString);
+            AppDatabase.getInstance(appContext).recentFileDao().deleteByUri(uriString);
         });
     }
 

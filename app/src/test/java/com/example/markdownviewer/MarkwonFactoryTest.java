@@ -80,6 +80,16 @@ public class MarkwonFactoryTest {
     }
 
     @Test
+    public void sanitizeHtml_dataSvgImageUrl_blocked() {
+        // SVG 内嵌可执行脚本，是 data: URL 漏洞的真实载体，必须拦截
+        String input = "<img src=\"data:image/svg+xml,<svg onload=alert(1)>\" />";
+        String result = MarkwonFactory.sanitizeHtml(input);
+        assertTrue(result.contains("<img"));
+        assertFalse(result.contains("data:image/svg+xml"));
+        assertFalse(result.contains("onload"));
+    }
+
+    @Test
     public void sanitizeHtml_dangerousAttrs_removed() {
         String input = "<a href=\"https://example.com\" target=\"_blank\" download=\"file.exe\">Link</a>";
         String result = MarkwonFactory.sanitizeHtml(input);

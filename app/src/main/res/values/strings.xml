@@ -33,6 +33,7 @@
     <string name="error_file_not_found">文件不存在</string>
     <string name="error_file_too_large">文件过大，不支持超过 5MB 的文件</string>
     <string name="error_read_failed">读取文件失败</string>
+    <string name="error_render_failed">文档渲染失败</string>
     <string name="error_open_failed">无法打开文件</string>
     <string name="error_unsupported_source">不支持的文件来源</string>
     <string name="error_no_permission">无法获取文件访问权限，请重新选择文件</string>

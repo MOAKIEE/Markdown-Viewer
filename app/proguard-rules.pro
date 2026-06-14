@@ -19,11 +19,10 @@
 # BlurView
 -keep class eightbitlab.com.blurview.** { *; }
 
-# Remove logging in release
+# Remove verbose/debug/info/warn logging in release, but keep Log.e for crash triage
 -assumenosideeffects class android.util.Log {
     public static int v(...);
     public static int d(...);
     public static int i(...);
     public static int w(...);
-    public static int e(...);
 }

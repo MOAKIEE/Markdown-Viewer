@@ -2,6 +2,7 @@ package com.example.markdownviewer;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Spanned;
@@ -9,11 +10,9 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -157,7 +156,21 @@ public class MarkdownActivity extends AppCompatActivity {
         if (intent == null) return false;
         Uri data = intent.getData();
         if (data == null) return false;
-        return "content".equals(data.getScheme());
+        if (!"content".equals(data.getScheme())) return false;
+
+        // 外部应用通过 ACTION_VIEW 调起时，校验调用者已安装，防止伪造 content:// 指向恶意 Provider
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            String caller = getCallingPackage();
+            if (caller != null && !caller.equals(getPackageName())) {
+                try {
+                    getPackageManager().getPackageInfo(caller, 0);
+                } catch (PackageManager.NameNotFoundException e) {
+                    Log.w(TAG, "Rejected ACTION_VIEW from unknown caller: " + caller);
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private String sanitizeFileName(String fileName) {
@@ -185,12 +198,6 @@ public class MarkdownActivity extends AppCompatActivity {
         viewModel.getIsLoading().observe(this, isLoading -> {
             if (isLoading != null && isLoading) {
                 showLoadingState();
-            }
-        });
-
-        viewModel.getErrorMessage().observe(this, error -> {
-            if (error != null && !error.isEmpty()) {
-                showLoadingError(error);
             }
         });
     }
@@ -227,6 +234,7 @@ public class MarkdownActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (binding == null) return;
         Uri currentUri = viewModel.getFileUri().getValue();
         if (currentUri != null) {
             RecentFilesManager.updateScrollY(this, currentUri, binding.scrollView.getScrollY());
@@ -494,56 +502,6 @@ public class MarkdownActivity extends AppCompatActivity {
         });
     }
 
-    private static class TocAdapter extends BaseAdapter {
-        private final float density;
-        private final List<TocParser.TocEntry> entries;
-
-        TocAdapter(android.content.Context context, List<TocParser.TocEntry> entries) {
-            this.density = context.getResources().getDisplayMetrics().density;
-            this.entries = entries;
-        }
-
-        @Override public int getCount() { return entries.size(); }
-        @Override public Object getItem(int position) { return entries.get(position); }
-        @Override public long getItemId(int position) { return position; }
-        @Override public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder holder;
-            if (convertView == null) {
-                convertView = LayoutInflater.from(parent.getContext())
-                        .inflate(R.layout.item_toc, parent, false);
-                holder = new ViewHolder();
-                holder.tvTitle = convertView.findViewById(R.id.tv_toc_title);
-                convertView.setTag(holder);
-            } else {
-                holder = (ViewHolder) convertView.getTag();
-            }
-            TocParser.TocEntry entry = entries.get(position);
-
-            int paddingLeftPx = (int) (((entry.level - 1) * 16 + 8) * density + 0.5f);
-            int paddingTopBottomPx = (int) (12 * density + 0.5f);
-            int paddingRightPx = (int) (8 * density + 0.5f);
-            convertView.setPadding(paddingLeftPx, paddingTopBottomPx, paddingRightPx, paddingTopBottomPx);
-
-            if (entry.level == 1) {
-                holder.tvTitle.setTextSize(16.5f);
-                holder.tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-                holder.tvTitle.setTextColor(ContextCompat.getColor(parent.getContext(), R.color.ios_text_primary));
-            } else if (entry.level == 2) {
-                holder.tvTitle.setTextSize(14.5f);
-                holder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
-                holder.tvTitle.setTextColor(ContextCompat.getColor(parent.getContext(), R.color.ios_text_primary));
-            } else {
-                holder.tvTitle.setTextSize(13.0f);
-                holder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
-                holder.tvTitle.setTextColor(ContextCompat.getColor(parent.getContext(), R.color.ios_text_secondary));
-            }
-
-            holder.tvTitle.setText(entry.title);
-            return convertView;
-        }
-        static class ViewHolder { TextView tvTitle; }
-    }
-
     // ---- Search UI ----
 
     private void showSearchBar() {
@@ -600,7 +558,7 @@ public class MarkdownActivity extends AppCompatActivity {
                     viewModel.setIsLoading(false);
 
                     if (!result.success) {
-                        showLoadingError(result.errorMessage);
+                        showLoadingError(result.errorCode);
                         return;
                     }
 
@@ -619,13 +577,29 @@ public class MarkdownActivity extends AppCompatActivity {
         binding.scrollView.setVisibility(View.GONE);
     }
 
-    private void showLoadingError(String error) {
+    private void showLoadingError(int errorCode) {
         if (isFinishing() || isDestroyed()) return;
         binding.progressLoading.setVisibility(View.GONE);
         binding.scrollView.setAlpha(1f);
         binding.scrollView.setVisibility(View.VISIBLE);
-        String message = error != null ? error : getString(R.string.error_read_failed);
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, messageForError(errorCode), Toast.LENGTH_SHORT).show();
+    }
+
+    /** 将 Repository 错误码映射到本地化文案；未知错误码回退到通用读取失败提示。 */
+    private String messageForError(int errorCode) {
+        switch (errorCode) {
+            case MarkdownRepository.ERR_TOO_LARGE:
+                return getString(R.string.error_file_too_large);
+            case MarkdownRepository.ERR_UNSUPPORTED_SCHEME:
+                return getString(R.string.error_unsupported_source);
+            case MarkdownRepository.ERR_RENDER_FAILED:
+                return getString(R.string.error_render_failed);
+            case MarkdownRepository.ERR_READ_FAILED:
+            case MarkdownRepository.ERR_CANCELLED:
+            case MarkdownRepository.ERR_NONE:
+            default:
+                return getString(R.string.error_read_failed);
+        }
     }
 
     private void renderContent(Spanned spanned, Uri uri) {

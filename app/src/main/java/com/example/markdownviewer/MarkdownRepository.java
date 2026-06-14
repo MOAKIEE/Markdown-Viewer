@@ -27,13 +27,24 @@ public final class MarkdownRepository {
 
     private static final String TAG = "MarkdownRepository";
 
+    /** 加载失败错误码；0 表示成功。UI 层据此映射到本地化文案。 */
+    public static final int ERR_NONE = 0;
+    public static final int ERR_UNSUPPORTED_SCHEME = 1;
+    public static final int ERR_TOO_LARGE = 2;
+    public static final int ERR_READ_FAILED = 3;
+    public static final int ERR_RENDER_FAILED = 4;
+    public static final int ERR_CANCELLED = 5;
+
     public static final class LoadResult {
         public final String rawMarkdown;
         public final Spanned renderedContent;
         public final List<TocParser.TocEntry> tocEntries;
         public final String title;
         public final boolean success;
+        /** 供日志/调试使用的英文消息；UI 显示用 {@link #errorCode} 映射。 */
         public final String errorMessage;
+        /** 错误码，见本类 ERR_* 常量；成功时为 {@link #ERR_NONE}。 */
+        public final int errorCode;
 
         private LoadResult(String rawMarkdown, Spanned renderedContent,
                            List<TocParser.TocEntry> tocEntries, String title) {
@@ -43,14 +54,16 @@ public final class MarkdownRepository {
             this.title = title;
             this.success = true;
             this.errorMessage = null;
+            this.errorCode = ERR_NONE;
         }
 
-        private LoadResult(String errorMessage) {
+        private LoadResult(int errorCode, String errorMessage) {
             this.rawMarkdown = null;
             this.renderedContent = null;
             this.tocEntries = null;
             this.title = null;
             this.success = false;
+            this.errorCode = errorCode;
             this.errorMessage = errorMessage;
         }
 
@@ -59,8 +72,8 @@ public final class MarkdownRepository {
             return new LoadResult(rawMarkdown, renderedContent, tocEntries, title);
         }
 
-        public static LoadResult failure(String errorMessage) {
-            return new LoadResult(errorMessage);
+        public static LoadResult failure(int errorCode, String errorMessage) {
+            return new LoadResult(errorCode, errorMessage);
         }
     }
 
@@ -94,7 +107,7 @@ public final class MarkdownRepository {
                                         @NonNull Markwon markwon,
                                         @NonNull AtomicBoolean cancelled) {
         if (!"content".equals(uri.getScheme())) {
-            return LoadResult.failure("Unsupported URI scheme");
+            return LoadResult.failure(ERR_UNSUPPORTED_SCHEME, "Unsupported URI scheme");
         }
 
         // 查询文件大小
@@ -111,7 +124,7 @@ public final class MarkdownRepository {
         }
 
         if (fileSize > Constants.MAX_FILE_SIZE) {
-            return LoadResult.failure("File too large");
+            return LoadResult.failure(ERR_TOO_LARGE, "File too large");
         }
 
         String rawContent;
@@ -119,12 +132,12 @@ public final class MarkdownRepository {
             rawContent = readContentWithLimit(context, uri, cancelled);
             if (rawContent == null) {
                 return cancelled.get()
-                        ? LoadResult.failure("Cancelled")
-                        : LoadResult.failure("File too large");
+                        ? LoadResult.failure(ERR_CANCELLED, "Cancelled")
+                        : LoadResult.failure(ERR_TOO_LARGE, "File too large");
             }
         } catch (IOException e) {
             Log.e(TAG, "Failed to read file", e);
-            return LoadResult.failure("Failed to read file");
+            return LoadResult.failure(ERR_READ_FAILED, "Failed to read file");
         }
 
         // 清理 HTML
@@ -140,7 +153,7 @@ public final class MarkdownRepository {
             rendered = markwon.toMarkdown(markdown);
         } catch (Exception e) {
             Log.e(TAG, "Failed to render markdown", e);
-            return LoadResult.failure("Failed to render markdown");
+            return LoadResult.failure(ERR_RENDER_FAILED, "Failed to render markdown");
         }
 
         String title = FileUtils.getDisplayName(context, uri);

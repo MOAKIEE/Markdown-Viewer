@@ -31,9 +31,6 @@ public final class MarkwonFactory {
     /**
      * jsoup Safelist 配置：只允许安全的 HTML 标签和属性。
      * 对比手写正则，jsoup 能正确解析 HTML 结构，不受实体编码、注释、嵌套等绕过技术影响。
-     */
-    /**
-     * jsoup Safelist 配置：只允许安全的 HTML 标签和属性。
      * 注意：不限制 URL 协议，危险 URL（javascript: 等）在 {@link #sanitizeHtml} 的
      * 后处理步骤中通过 {@link #sanitizeDangerousUrls} 清理。
      */
@@ -134,6 +131,9 @@ public final class MarkwonFactory {
     /**
      * 后处理：清理危险的 URL（javascript:, vbscript:, data:text/html 等）。
      * jsoup Safelist 已移除了所有 on* 事件处理器，但 href/src 中的危险协议需要额外清理。
+     *
+     * <p>同时拦截 {@code data:image/svg+xml} —— SVG 内嵌可执行脚本，是 data: URL
+     * 漏洞的真实载体，必须与 {@code data:text/html} 一并拦截。
      */
     private static String sanitizeDangerousUrls(String html) {
         if (html == null) return html;
@@ -160,7 +160,8 @@ public final class MarkwonFactory {
                 src.startsWith("data:text/javascript") ||
                 src.startsWith("data:application/javascript") ||
                 src.startsWith("data:application/x-javascript") ||
-                src.startsWith("data:application/xhtml+xml")) {
+                src.startsWith("data:application/xhtml+xml") ||
+                src.startsWith("data:image/svg+xml")) {
                 img.removeAttr("src");
             }
         }

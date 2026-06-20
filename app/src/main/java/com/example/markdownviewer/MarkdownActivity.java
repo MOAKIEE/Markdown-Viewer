@@ -474,17 +474,7 @@ public class MarkdownActivity extends AppCompatActivity {
         if (text == null) return;
 
         List<TocParser.TocEntry> entries = viewModel.getTocEntries().getValue();
-        int offset = 0;
-        if (entries != null) {
-            for (TocParser.TocEntry entry : entries) {
-                if (entry.lineIndex == lineIndex) {
-                    offset = entry.charOffset;
-                    break;
-                }
-            }
-        }
-
-        final int targetOffset = offset;
+        final int targetOffset = resolveRenderedHeadingOffset(text, entries, lineIndex);
         binding.markdownText.post(() -> {
             android.text.Layout layout = binding.markdownText.getLayout();
             if (layout == null) return;
@@ -500,6 +490,85 @@ public class MarkdownActivity extends AppCompatActivity {
 
             binding.scrollView.smoothScrollTo(0, targetY);
         });
+    }
+
+    static int resolveRenderedHeadingOffset(CharSequence renderedText,
+                                            List<TocParser.TocEntry> entries,
+                                            int lineIndex) {
+        if (renderedText == null || renderedText.length() == 0) return 0;
+        TocParser.TocEntry target = null;
+        if (entries != null) {
+            for (TocParser.TocEntry entry : entries) {
+                if (entry.lineIndex == lineIndex) {
+                    target = entry;
+                    break;
+                }
+            }
+        }
+        if (target == null) return 0;
+
+        String targetTitle = normalizeRenderedHeadingTitle(target.title);
+        if (!targetTitle.isEmpty()) {
+            int occurrenceIndex = 0;
+            if (entries != null) {
+                for (TocParser.TocEntry entry : entries) {
+                    if (entry.lineIndex == lineIndex) break;
+                    if (targetTitle.equals(normalizeRenderedHeadingTitle(entry.title))) {
+                        occurrenceIndex++;
+                    }
+                }
+            }
+
+            String rendered = renderedText.toString();
+            int renderedOffset = nthLineStartIndexOf(rendered, targetTitle, occurrenceIndex);
+            if (renderedOffset < 0) {
+                renderedOffset = nthIndexOf(rendered, targetTitle, occurrenceIndex);
+            }
+            if (renderedOffset >= 0) return renderedOffset;
+        }
+
+        return Math.max(0, Math.min(target.charOffset, renderedText.length()));
+    }
+
+    private static String normalizeRenderedHeadingTitle(String title) {
+        if (title == null) return "";
+        String normalized = title
+                .replaceAll("!\\[([^\\]]*)\\]\\([^)]*\\)", "$1")
+                .replaceAll("\\[([^\\]]+)\\]\\([^)]*\\)", "$1")
+                .replaceAll("<[^>]+>", "")
+                .replace("`", "")
+                .replace("*", "")
+                .replace("_", "")
+                .replace("~", "")
+                .trim();
+        return normalized.replaceAll("\\s+", " ");
+    }
+
+    private static int nthIndexOf(String text, String query, int occurrenceIndex) {
+        int fromIndex = 0;
+        int found = -1;
+        for (int i = 0; i <= occurrenceIndex; i++) {
+            found = text.indexOf(query, fromIndex);
+            if (found < 0) return -1;
+            fromIndex = found + query.length();
+        }
+        return found;
+    }
+
+    private static int nthLineStartIndexOf(String text, String query, int occurrenceIndex) {
+        int fromIndex = 0;
+        int seen = 0;
+        while (fromIndex <= text.length()) {
+            int found = text.indexOf(query, fromIndex);
+            if (found < 0) return -1;
+            boolean atLineStart = found == 0 || text.charAt(found - 1) == '\n';
+            if (atLineStart) {
+                if (seen == occurrenceIndex) return found;
+                seen++;
+            }
+            fromIndex = found + query.length();
+        }
+        return -1;
     }
 
     // ---- Search UI ----

@@ -21,6 +21,7 @@ import io.noties.markwon.image.glide.GlideImagesPlugin;
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin;
 import io.noties.markwon.linkify.LinkifyPlugin;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class MarkwonFactory {
@@ -143,7 +144,7 @@ public final class MarkwonFactory {
 
         // 清理 a[href] 中的危险协议
         for (Element a : doc.select("a[href]")) {
-            String href = a.attr("href").trim().toLowerCase();
+            String href = a.attr("href").trim().toLowerCase(Locale.ROOT);
             if (href.startsWith("javascript:") ||
                 href.startsWith("vbscript:") ||
                 href.startsWith("data:")) {
@@ -153,7 +154,7 @@ public final class MarkwonFactory {
 
         // 清理 img[src] 中的危险协议
         for (Element img : doc.select("img[src]")) {
-            String src = img.attr("src").trim().toLowerCase();
+            String src = img.attr("src").trim().toLowerCase(Locale.ROOT);
             if (src.startsWith("javascript:") ||
                 src.startsWith("vbscript:") ||
                 src.startsWith("data:text/html") ||

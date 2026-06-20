@@ -2,6 +2,8 @@ package com.example.markdownviewer;
 
 import org.junit.Test;
 
+import java.util.Locale;
+
 import static org.junit.Assert.*;
 
 public class MarkwonFactoryTest {
@@ -54,6 +56,22 @@ public class MarkwonFactoryTest {
         assertTrue(result.contains("<a"));
         assertTrue(result.contains(">Click</a>"));
         assertFalse(result.contains("javascript"));
+    }
+
+    @Test
+    public void sanitizeHtml_uppercaseJavascriptUrl_blockedInTurkishLocale() {
+        Locale previousLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            String input = "<a href=\"JAVASCRIPT:alert(1)\">Click</a>"
+                    + "<img src=\"JAVASCRIPT:alert(1)\" />";
+
+            String result = MarkwonFactory.sanitizeHtml(input);
+
+            assertFalse(result.toLowerCase(Locale.ROOT).contains("javascript:"));
+        } finally {
+            Locale.setDefault(previousLocale);
+        }
     }
 
     @Test

@@ -123,6 +123,9 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
         binding.progressBar.setVisibility(View.VISIBLE);
 
         final int generation = loadGeneration.incrementAndGet();
+        final String parentDocumentId = mPathStack.isEmpty()
+                ? null
+                : mPathStack.get(mPathStack.size() - 1);
 
         AppExecutor.getInstance().diskIO().execute(() -> {
             List<FileItem> fileItems = new ArrayList<>();
@@ -162,9 +165,8 @@ public class FilePickerActivity extends AppCompatActivity implements FileAdapter
             Collections.sort(dirList, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
             Collections.sort(mdList, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
 
-            if (!mPathStack.isEmpty()) {
-                String parentId = mPathStack.get(mPathStack.size() - 1);
-                fileItems.add(new FileItem("..", parentId, true, true, 0));
+            if (parentDocumentId != null) {
+                fileItems.add(new FileItem("..", parentDocumentId, true, true, 0));
             }
             fileItems.addAll(dirList);
             fileItems.addAll(mdList);

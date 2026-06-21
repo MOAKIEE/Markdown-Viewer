@@ -30,6 +30,9 @@ public final class MarkwonFactory {
 
     private static final Pattern LATEX_PATTERN = Pattern.compile(
             "\\$\\$|\\\\\\(|\\\\\\[");
+    private static final Pattern HTML_URL_ATTR_PATTERN = Pattern.compile(
+            "<(?:a|img)\\b[^>]*(?:href|src)\\s*=",
+            Pattern.CASE_INSENSITIVE);
 
     /**
      * jsoup Safelist 配置：只允许安全的 HTML 标签和属性。
@@ -137,7 +140,8 @@ public final class MarkwonFactory {
     private static String protectMarkdownCode(String content, List<ProtectedMarkdownSegment> segments) {
         String tokenPrefix = uniqueTokenPrefix(content);
         String fencedProtected = protectFencedCodeBlocks(content, segments, tokenPrefix);
-        return protectInlineCode(fencedProtected, segments, tokenPrefix);
+        String indentedProtected = protectIndentedCodeBlocks(fencedProtected, segments, tokenPrefix);
+        return protectInlineCode(indentedProtected, segments, tokenPrefix);
     }
 
     private static String uniqueTokenPrefix(String content) {
@@ -205,6 +209,46 @@ public final class MarkwonFactory {
             output.append(addProtectedSegment(content.substring(index, end), segments, tokenPrefix));
             index = end;
         }
+        return output.toString();
+    }
+
+    private static String protectIndentedCodeBlocks(String content,
+                                                    List<ProtectedMarkdownSegment> segments,
+                                                    String tokenPrefix) {
+        StringBuilder output = new StringBuilder(content.length());
+        int index = 0;
+        boolean previousLineBlank = true;
+
+        while (index < content.length()) {
+            int lineEnd = findLineEnd(content, index);
+            String line = content.substring(index, lineEnd);
+
+            if (previousLineBlank && isIndentedCodeLine(line)) {
+                int blockStart = index;
+                int scan = lineEndWithBreak(content, lineEnd);
+                boolean blockEndsWithBlank = false;
+
+                while (scan < content.length()) {
+                    int nextLineEnd = findLineEnd(content, scan);
+                    String nextLine = content.substring(scan, nextLineEnd);
+                    if (!isBlankLine(nextLine) && !isIndentedCodeLine(nextLine)) {
+                        break;
+                    }
+                    blockEndsWithBlank = isBlankLine(nextLine);
+                    scan = lineEndWithBreak(content, nextLineEnd);
+                }
+
+                output.append(addProtectedSegment(content.substring(blockStart, scan), segments, tokenPrefix));
+                previousLineBlank = blockEndsWithBlank;
+                index = scan;
+                continue;
+            }
+
+            output.append(content, index, lineEndWithBreak(content, lineEnd));
+            previousLineBlank = isBlankLine(line);
+            index = lineEndWithBreak(content, lineEnd);
+        }
+
         return output.toString();
     }
 
@@ -277,6 +321,36 @@ public final class MarkwonFactory {
         return true;
     }
 
+    private static boolean isIndentedCodeLine(String line) {
+        if (isBlankLine(line)) return false;
+
+        int columns = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == ' ') {
+                columns++;
+            } else if (c == '\t') {
+                return true;
+            } else {
+                return columns >= 4;
+            }
+
+            if (columns >= 4) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isBlankLine(String line) {
+        for (int i = 0; i < line.length(); i++) {
+            if (!Character.isWhitespace(line.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static int countRepeated(String text, int start, char c) {
         int index = start;
         while (index < text.length() && text.charAt(index) == c) {
@@ -322,7 +396,7 @@ public final class MarkwonFactory {
      */
     private static String sanitizeDangerousUrls(String html) {
         if (html == null) return html;
-        if (!html.contains(":")) return html;
+        if (!HTML_URL_ATTR_PATTERN.matcher(html).find()) return html;
 
         org.jsoup.nodes.Document doc = Jsoup.parseBodyFragment(html);
 
